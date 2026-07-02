@@ -233,12 +233,26 @@ async function loadCycles() {
 }
 
 // A5 · Onboarding: styled "Nuevo ciclo" modal (replaces window.prompt).
-function openNewCycleModal() {
-  document.getElementById("newCycleModal")?.remove();
+// Shared modal helper (P0): removes duplication across the modal builders.
+// Creates a .export-modal overlay mounted in .workspace, closes on backdrop
+// click and Esc, and returns the overlay for the caller to wire its buttons.
+function openModal(id, innerHtml) {
+  document.getElementById(id)?.remove();
   const overlay = document.createElement("div");
-  overlay.id = "newCycleModal";
+  overlay.id = id;
   overlay.className = "export-modal";
-  overlay.innerHTML = `
+  overlay.innerHTML = innerHtml;
+  const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey);
+  overlay.close = close;
+  workspace.appendChild(overlay);
+  return overlay;
+}
+
+function openNewCycleModal() {
+  const overlay = openModal("newCycleModal", `
     <div class="export-modal-card newcycle-card">
       <p class="eyebrow">Nuevo ciclo · F0 Sense</p>
       <h2 class="pd-title">Empieza por un comportamiento, no por una feature.</h2>
@@ -253,14 +267,12 @@ function openNewCycleModal() {
         <button type="button" class="secondary-action" data-nc="cancel">Cancelar</button>
         <button type="button" class="primary-action" data-nc="create">Crear ciclo · abrir F0</button>
       </div>
-    </div>`;
-  const close = () => overlay.remove();
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-nc="cancel"]').addEventListener("click", close);
+    </div>`);
+  overlay.querySelector('[data-nc="cancel"]').addEventListener("click", overlay.close);
   const submit = async () => {
     const behavior = overlay.querySelector("#ncBehavior").value.trim();
     if (!behavior) { const err = overlay.querySelector("#ncError"); err.textContent = "Describe el comportamiento para empezar."; err.hidden = false; return; }
-    close();
+    overlay.close();
     await createCycle(behavior, {
       sub_perfil: overlay.querySelector("#ncSub").value.trim().replace(/\s+/g, "_") || null,
       transicion: overlay.querySelector("#ncTrans").value.trim() || null,
@@ -268,7 +280,6 @@ function openNewCycleModal() {
   };
   overlay.querySelector('[data-nc="create"]').addEventListener("click", submit);
   overlay.querySelector("#ncBehavior").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
-  workspace.appendChild(overlay);
   setTimeout(() => overlay.querySelector("#ncBehavior").focus(), 30);
 }
 
@@ -664,10 +675,7 @@ function openPatternDetail(id) {
   if (!p) return;
   const isAnti = p.tipo === "anti_patron";
   const row = (label, val) => val ? `<div class="pd-row"><span class="section-label">${escapeHtml(label)}</span><p>${escapeHtml(val)}</p></div>` : "";
-  const overlay = document.createElement("div");
-  overlay.id = "patternDetail";
-  overlay.className = "export-modal";
-  overlay.innerHTML = `
+  const overlay = openModal("patternDetail", `
     <div class="export-modal-card pattern-detail-card">
       <span class="pattern-badge ${isAnti ? "anti_patron" : "patron"}">${isAnti ? "Anti-patrón" : "Patrón"}</span>
       <h2 class="pd-title">${escapeHtml(p.nombre ?? "Sin nombre")}</h2>
@@ -684,18 +692,16 @@ function openPatternDetail(id) {
         <button type="button" class="secondary-action" data-pd="close">Cerrar</button>
         <button type="button" class="primary-action" data-pd="reuse">Reusar patrón</button>
       </div>
-    </div>`;
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
-  overlay.querySelector('[data-pd="close"]').addEventListener("click", () => overlay.remove());
-  overlay.querySelector('[data-pd="reuse"]').addEventListener("click", () => { overlay.remove(); reusePattern(p.id); });
+    </div>`);
+  overlay.querySelector('[data-pd="close"]').addEventListener("click", overlay.close);
+  overlay.querySelector('[data-pd="reuse"]').addEventListener("click", () => { overlay.close(); reusePattern(p.id); });
   const origin = overlay.querySelector("[data-pd-origin]");
   if (origin) origin.addEventListener("click", () => {
-    overlay.remove();
+    overlay.close();
     const c = cycles.find((x) => x.id === p.ciclo_origen_id);
     if (c) { currentCycleId = c.id; renderActiveCycle(); renderStepper(); loadMessages(c.id); setView("workspace"); }
     else showToast("El ciclo de origen no está disponible.");
   });
-  workspace.appendChild(overlay);
 }
 
 // --- View ---
@@ -1362,12 +1368,8 @@ function exportBriefFlow(force = false) {
 }
 
 function openExportModal(missing) {
-  closeExportModal();
   const items = missing.map((m) => `<li>${escapeHtml(m.label)}</li>`).join("");
-  const overlay = document.createElement("div");
-  overlay.id = "exportModal";
-  overlay.className = "export-modal";
-  overlay.innerHTML = `
+  const overlay = openModal("exportModal", `
     <div class="export-modal-card">
       <p class="section-label">Exportar brief</p>
       <p class="export-modal-msg">Hay ${missing.length} campo(s) sin confirmar. La IA los trata como <strong>supuestos</strong>.</p>
@@ -1376,12 +1378,9 @@ function openExportModal(missing) {
         <button type="button" class="secondary-action" data-export="complete">Completar campos</button>
         <button type="button" class="primary-action" data-export="force">Exportar con supuestos</button>
       </div>
-    </div>`;
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeExportModal(); });
-  overlay.querySelector('[data-export="complete"]').addEventListener("click", closeExportModal);
+    </div>`);
+  overlay.querySelector('[data-export="complete"]').addEventListener("click", overlay.close);
   overlay.querySelector('[data-export="force"]').addEventListener("click", () => exportBriefFlow(true));
-  // Mount inside .workspace so design tokens (and dark mode) apply.
-  workspace.appendChild(overlay);
 }
 
 function closeExportModal() {
