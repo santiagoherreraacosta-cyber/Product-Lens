@@ -861,7 +861,7 @@ function applyTheme(theme) {
 }
 
 // --- Stepper ---
-function renderStepper() {
+function renderStepper(pulseKey = null) {
   const phases = getPhases();
   const active = getActivePhase();
 
@@ -870,8 +870,9 @@ function renderStepper() {
       const statusMark = phase.state === "done" ? "✓" : index;
       const skipped = phase.skipped ? '<span class="skipped-pin" aria-label="gate saltado"></span>' : "";
       const note = phase.note ? `<span class="phase-note">${escapeHtml(phase.note)}</span>` : "";
+      const pulse = phase.key === pulseKey ? " just-advanced" : "";
       return `
-        <button class="phase-row ${phase.state} ${phase.skipped ? "skipped" : ""}" type="button" data-phase="${escapeHtml(phase.key)}">
+        <button class="phase-row ${phase.state} ${phase.skipped ? "skipped" : ""}${pulse}" type="button" data-phase="${escapeHtml(phase.key)}">
           <span class="phase-dot">${statusMark}</span>
           <span class="phase-copy">
             <span class="phase-label-line"><strong>${escapeHtml(phase.key)} ${escapeHtml(phase.label)}</strong>${skipped}</span>
@@ -1093,7 +1094,7 @@ async function advancePhase(withRisk = false) {
     cycles = cycles.map((c) => (c.id === currentCycleId ? data.cycle : c));
     removeGateCard();
     renderActiveCycle();
-    renderStepper();
+    renderStepper(data.advancedTo);
     renderBriefState();
     addAiNote(data.skippedWithRisk
       ? `Avanzamos a ${data.advancedTo} con riesgo explícito (gate incompleto). Queda registrado en "Riesgos asumidos".`

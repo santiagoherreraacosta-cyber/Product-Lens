@@ -279,6 +279,23 @@ button { cursor: pointer; }
 .skipped-pin { background: var(--amber); border-radius: 999px; height: 6px; width: 6px; }
 .phase-row.skipped .phase-note { color: var(--amber); }
 
+/* B4 · Phase-progression animation: green pulse + spring on the newly-active row. */
+.phase-row.just-advanced { animation: phase-advance-spring 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.phase-row.just-advanced .phase-dot { animation: phase-dot-pulse 0.9s ease-out both; }
+@keyframes phase-advance-spring {
+  0% { transform: translateX(-4px) scale(0.98); }
+  60% { transform: translateX(2px) scale(1.02); }
+  100% { transform: translateX(0) scale(1); }
+}
+@keyframes phase-dot-pulse {
+  0% { box-shadow: 0 0 0 0 var(--green); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phase-row.just-advanced, .phase-row.just-advanced .phase-dot { animation: none; }
+}
+
 .rail-footer { border-top: 1px solid var(--border); margin: 4px 12px 0; padding-top: 12px; }
 .rail-link {
   align-items: center;
