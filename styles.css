@@ -427,8 +427,10 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .workspace[data-view="home"] .workspace-view,
 .workspace[data-view="library"] .workspace-view,
 .workspace[data-view="context"] .workspace-view,
+.workspace[data-view="analytics"] .workspace-view,
 .workspace[data-view="home"] .brief-panel,
 .workspace[data-view="library"] .brief-panel,
+.workspace[data-view="analytics"] .brief-panel,
 .workspace[data-view="context"] .brief-panel { display: none; }
 .workspace[data-view="workspace"] .app-view { display: none; }
 .app-view { flex: 1; overflow-y: auto; padding: 34px; }
@@ -726,3 +728,10 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .export-missing { color: var(--text2); font-size: 13px; margin: 0 0 14px; padding-left: 18px; }
 .export-missing li { margin-bottom: 3px; }
 .export-modal-actions { display: flex; gap: 9px; justify-content: flex-end; }
+
+/* --- Analytics panel (Fase 5) --- */
+.analytics-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 0 auto; max-width: 1080px; }
+.stat-tile { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; }
+.stat-value { color: var(--text); font-size: 28px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.stat-label { color: var(--text2); font-size: 13px; font-weight: 600; margin-top: 6px; }
+.stat-hint { color: var(--text3); font-size: 11.5px; }

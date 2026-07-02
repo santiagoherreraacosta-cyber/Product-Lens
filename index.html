@@ -79,6 +79,10 @@
             <span aria-hidden="true">ⓘ</span>
             Contexto Dropi
           </button>
+          <button class="rail-link" type="button" data-view-target="analytics">
+            <span aria-hidden="true">▤</span>
+            Métricas
+          </button>
           <button id="logoutButton" class="rail-link rail-link--logout" type="button">
             <span aria-hidden="true">↩</span>
             <span id="userEmail" class="user-email"></span>
@@ -196,6 +200,13 @@
             <p>Base de conocimiento persistida, versionada y editable por admins.</p>
             <div id="contextDocuments" class="context-documents" aria-live="polite"></div>
           </article>
+        </section>
+
+        <section id="analyticsView" class="app-view analytics-view scrim" hidden>
+          <header class="page-header">
+            <div><p class="eyebrow">Proceso</p><h1>Métricas</h1><p>Cómo decide el equipo: rigor de los gates, iteraciones y patrones aprendidos.</p></div>
+          </header>
+          <div id="analyticsGrid" class="analytics-grid" aria-live="polite"></div>
         </section>
       </main>
 
