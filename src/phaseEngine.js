@@ -76,10 +76,13 @@ function hasQuantitativeSignal(cycle) {
 function hasAtLeastTwoSources(cycle) {
   const generic = cycle.sources ?? cycle.evidence?.sources;
   if (Array.isArray(generic) && generic.filter(Boolean).length >= 2) return true;
-  // Live schema: primary evidence + second source both present.
-  const primary = briefHasValue(cycle, "evidencia_primaria");
-  const second = briefHasValue(cycle, "segunda_fuente");
-  return primary && second;
+  // Live schema: both sources must be present AND confirmed by the PM — an
+  // auto-suggested [CONFIRMAR] value is an assumption, not evidence.
+  const confirmed = (name) => {
+    const f = cycle.brief?.[name];
+    return !!(f && hasText(f.value) && f.confirmed);
+  };
+  return confirmed("evidencia_primaria") && confirmed("segunda_fuente");
 }
 
 function hasBmapCause(cycle) {

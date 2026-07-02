@@ -115,6 +115,23 @@ async function persistCycles() {
   }
 }
 
+// Deep-merge plain objects (arrays and scalars from source override target).
+// Used by PATCH /api/cycles/:id so partial brief/experiment updates don't wipe
+// sibling fields (journey coherence hotfix).
+function deepMerge(target, source) {
+  if (source === null || typeof source !== "object" || Array.isArray(source)) return source;
+  const out = { ...(target && typeof target === "object" && !Array.isArray(target) ? target : {}) };
+  for (const key of Object.keys(source)) {
+    const sv = source[key];
+    if (sv && typeof sv === "object" && !Array.isArray(sv)) {
+      out[key] = deepMerge(out[key], sv);
+    } else {
+      out[key] = sv;
+    }
+  }
+  return out;
+}
+
 // --- F0 behavior validation (Fase 2) ---
 // Heuristic: reject titles framed as a solution/feature instead of a behavior.
 const FEATURE_TERMS = [
@@ -611,7 +628,9 @@ async function handle(req, res) {
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
       const now = new Date().toISOString();
-      const updated = { ...cycle, ...body, id: cycleId, updatedAt: now, last_activity_at: now };
+      // Deep-merge nested objects (brief/experiment/cierre) so a partial patch of
+      // one field does not wipe the others. Scalars/arrays override normally.
+      const updated = { ...deepMerge(cycle, body), id: cycleId, updatedAt: now, last_activity_at: now };
       cycles.set(cycleId, updated);
       void persistCycles();
       logAudit(currentUser?.email, "cycle_updated", cycleId);

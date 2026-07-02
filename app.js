@@ -920,8 +920,14 @@ function renderBriefState() {
   if (accepted) {
     const cycle = getCurrentCycle();
     const who = currentUser?.email ?? "usuario";
-    const when = cycle?.updatedAt ? new Date(cycle.updatedAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
-    riskTag.innerHTML = `<span>F1</span> Diagnóstico con 1 sola fuente. Riesgo aceptado por ${escapeHtml(who)} · ${escapeHtml(when)}.`;
+    // Reflect the actual last accepted risk (recorded server-side) instead of a
+    // hardcoded phrase.
+    const lastRisk = (cycle?.risks ?? []).filter((r) => !r.resolvedAt).slice(-1)[0];
+    const phase = lastRisk?.phase ?? "F1";
+    const text = lastRisk?.text ?? "Avance de fase con gate incompleto.";
+    const stamp = lastRisk?.acceptedAt ?? cycle?.updatedAt;
+    const when = stamp ? new Date(stamp).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
+    riskTag.innerHTML = `<span>${escapeHtml(phase)}</span> ${escapeHtml(text)} Riesgo aceptado por ${escapeHtml(who)} · ${escapeHtml(when)}.`;
   }
   setDeliverable(deliverable);
 }
