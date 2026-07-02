@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
-import { getMissingGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
+import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 
 const PORT = process.env.PORT || 8000;
 const ROOT = process.cwd();
@@ -501,7 +501,7 @@ async function handle(req, res) {
       const phase = url.searchParams.get("phase") || cycle.fase_actual || cycle.activePhase || "F0";
       if (!PHASES.includes(phase)) return json(res, { error: "Invalid phase" }, 400);
       const missing = getMissingGateRequirements(cycle, phase);
-      return json(res, { phase, ok: missing.length === 0, missing });
+      return json(res, { phase, ok: missing.length === 0, missing, requirements: getGateRequirements(cycle, phase) });
     }
 
     // Advance a phase with server-side gate validation (Fase 2).
