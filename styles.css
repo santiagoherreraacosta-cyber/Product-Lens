@@ -749,6 +749,15 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .export-missing li { margin-bottom: 3px; }
 .export-modal-actions { display: flex; gap: 9px; justify-content: flex-end; }
 
+/* B2 · Export preview modal */
+.export-preview-card { max-width: 560px; }
+.export-preview-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 12px; }
+.export-format-toggle { background: var(--hover); border-radius: 9px; display: inline-flex; gap: 2px; padding: 2px; }
+.fmt-btn { background: transparent; border: 0; border-radius: 7px; color: var(--text2); cursor: pointer; font-size: 12px; font-weight: 600; padding: 5px 12px; }
+.fmt-btn.active { background: var(--panel); box-shadow: var(--shadow-card); color: var(--text); }
+.export-preview { background: var(--code-bg, #0f1115); border: 1px solid var(--border); border-radius: 10px; color: var(--code-ink, #e6e6e6); font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; line-height: 1.5; margin: 0 0 14px; max-height: 46vh; overflow: auto; padding: 14px; white-space: pre-wrap; word-break: break-word; }
+.export-preview-note { color: var(--text2); font-size: 13px; margin: 4px 0 16px; }
+
 /* --- Analytics panel (Fase 5) --- */
 .analytics-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 0 auto; max-width: 1080px; }
 .stat-tile { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; }
