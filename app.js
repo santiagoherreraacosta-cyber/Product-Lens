@@ -1,4 +1,5 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
+import { markdownToPdfHtml } from "./src/exportService.js";
 
 // --- Constants ---
 const THEME_KEY = "dropi-workspace-theme";
@@ -1397,6 +1398,13 @@ function closeExportModal() {
 }
 
 function downloadBrief() {
+  const { markdown, title } = buildBriefMarkdown();
+  openExportPreview(markdown, title);
+}
+
+// Builds the live Intervention Brief Markdown from the current cycle. Returns
+// { markdown, title } so it can feed both the preview and the downloads.
+function buildBriefMarkdown() {
   const cycle = getCurrentCycle();
   const b = cycle?.brief ?? {};
   const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
@@ -1460,15 +1468,72 @@ function downloadBrief() {
     `*Exportado por ${who} · ${when}*`,
   );
 
-  const markdown = lines.join("\n");
+  return { markdown: lines.join("\n"), title };
+}
 
+const briefSlug = (title) => (title || "brief").toLowerCase().replace(/\s+/g, "-").slice(0, 40);
+
+function downloadMarkdownFile(markdown, title) {
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `intervention-brief-${(title).toLowerCase().replace(/\s+/g, "-").slice(0, 40)}.md`;
+  anchor.download = `intervention-brief-${briefSlug(title)}.md`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+// Opens the printable PDF-ready HTML in a new window; it auto-invokes print(),
+// where the user can "Guardar como PDF". No PDF library needed (B2).
+function openPdfPrint(markdown, title) {
+  const html = markdownToPdfHtml(markdown, `Intervention Brief · ${title}`);
+  const w = window.open("", "_blank");
+  if (!w) { showToast("Permite las ventanas emergentes para exportar a PDF.", true); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
+// B2 · Export preview modal: Markdown preview (mono) + Markdown/PDF toggle +
+// copiar / descargar.
+function openExportPreview(markdown, title) {
+  const overlay = openModal("exportPreview", `
+    <div class="export-modal-card export-preview-card">
+      <div class="export-preview-head">
+        <p class="section-label">Exportar brief</p>
+        <div class="export-format-toggle" role="tablist">
+          <button type="button" class="fmt-btn active" data-fmt="md" role="tab">Markdown</button>
+          <button type="button" class="fmt-btn" data-fmt="pdf" role="tab">PDF</button>
+        </div>
+      </div>
+      <pre class="export-preview" data-view="md">${escapeHtml(markdown)}</pre>
+      <p class="export-preview-note" data-view="pdf" hidden>Se abrirá una vista imprimible; usa <strong>“Guardar como PDF”</strong> en el diálogo de impresión.</p>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-act="copy">Copiar Markdown</button>
+        <button type="button" class="primary-action" data-act="download">Descargar</button>
+      </div>
+    </div>`);
+  let fmt = "md";
+  const pre = overlay.querySelector('[data-view="md"]');
+  const note = overlay.querySelector('[data-view="pdf"]');
+  const copyBtn = overlay.querySelector('[data-act="copy"]');
+  const dlBtn = overlay.querySelector('[data-act="download"]');
+  overlay.querySelectorAll(".fmt-btn").forEach((btn) => btn.addEventListener("click", () => {
+    fmt = btn.dataset.fmt;
+    overlay.querySelectorAll(".fmt-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    if (pre) pre.hidden = fmt !== "md";
+    if (note) note.hidden = fmt !== "pdf";
+    if (copyBtn) copyBtn.hidden = fmt !== "md";
+    if (dlBtn) dlBtn.textContent = fmt === "pdf" ? "Abrir para imprimir / PDF" : "Descargar .md";
+  }));
+  if (dlBtn) dlBtn.textContent = "Descargar .md";
+  copyBtn?.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(markdown); showToast("Markdown copiado al portapapeles."); }
+    catch { showToast("No se pudo copiar. Usa Descargar.", true); }
+  });
+  dlBtn?.addEventListener("click", () => {
+    if (fmt === "pdf") openPdfPrint(markdown, title);
+    else downloadMarkdownFile(markdown, title);
+  });
 }
 
 // --- Toast ---
