@@ -48,6 +48,13 @@ export function getMissingGateRequirements(cycle, phase) {
     .map((req) => ({ key: req.key, message: req.message }));
 }
 
+// Returns ALL requirements for the phase with their met status — drives the
+// in-chat phase guide checklist (A1).
+export function getGateRequirements(cycle, phase) {
+  assertPhase(phase);
+  return GATE_REQUIREMENTS[phase].map((req) => ({ key: req.key, message: req.message, met: req.isMet(cycle) }));
+}
+
 export function acceptRisk(cycle, phase, riskText, actor = {}) {
   assertPhase(phase);
   if (!String(riskText ?? "").trim()) throw new Error("Risk text is required.");

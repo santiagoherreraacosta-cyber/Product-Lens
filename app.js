@@ -1,3 +1,5 @@
+import { getGateRequirements } from "./src/phaseEngine.js";
+
 // --- Constants ---
 const THEME_KEY = "dropi-workspace-theme";
 const TOKEN_KEY = "dropi-token";
@@ -340,6 +342,37 @@ function renderCyclesList() {
   });
 }
 
+// A1 · Phase guide: pinned block above the chat with the active phase's
+// objective and a live checklist of its gate requirements.
+const PHASE_META = {
+  F0: { label: "Sense", goal: "Detecta un comportamiento anómalo: ¿qué seller, haciendo qué, no está haciendo qué? Añade una señal cuantitativa." },
+  F1: { label: "Diagnose", goal: "Encuentra la causa raíz con B=MAP. Necesitas ≥2 fuentes confirmadas y declarar la causa (Motivación / Ability / Prompt)." },
+  F2: { label: "Design", goal: "Diseña la intervención sobre la causa detectada y formula una hipótesis falsable." },
+  F3: { label: "Decide", goal: "Dimensiona el experimento: métrica de éxito, tamaño/duración y criterio de stop." },
+  F4: { label: "Deploy", goal: "Lanza y observa: experimento corriendo y tracking confirmado." },
+  F5: { label: "Distill", goal: "Extrae el aprendizaje: resultado, decisión (escalar/matar/iterar) y patrón nombrado." },
+};
+
+function renderPhaseGuide(cycle) {
+  const el = document.getElementById("phaseGuide");
+  if (!el) return;
+  if (!cycle || (cycle.estado && cycle.estado !== "activo")) { el.hidden = true; el.innerHTML = ""; return; }
+  const phase = cycle.fase_actual ?? cycle.activePhase ?? "F0";
+  const meta = PHASE_META[phase];
+  if (!meta) { el.hidden = true; return; }
+  let reqs = [];
+  try { reqs = getGateRequirements(cycle, phase); } catch { reqs = []; }
+  const done = reqs.filter((r) => r.met).length;
+  const items = reqs.map((r) =>
+    `<li class="${r.met ? "is-met" : ""}"><span class="pg-check">${r.met ? "✓" : "○"}</span>${escapeHtml(r.message.replace(/^Falta (la |el |confirmar el )?/i, ""))}</li>`
+  ).join("");
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="pg-head"><strong>${escapeHtml(phase)} · ${escapeHtml(meta.label)}</strong><span class="pg-count">${done}/${reqs.length} para cerrar el gate</span></div>
+    <p class="pg-goal">${escapeHtml(meta.goal)}</p>
+    ${reqs.length ? `<ul class="pg-checklist">${items}</ul>` : ""}`;
+}
+
 function renderActiveCycle() {
   const cycle = getCurrentCycle();
   const closePanel = document.getElementById("closePanel");
@@ -350,6 +383,7 @@ function renderActiveCycle() {
     activePhaseNote.textContent = "";
     briefCycleTitle.textContent = "[CONFIRMAR]";
     if (closePanel) closePanel.hidden = true;
+    renderPhaseGuide(null);
     return;
   }
   const phases = cycle.phases ?? phaseSeed;
@@ -375,6 +409,7 @@ function renderActiveCycle() {
   }
   // Populate brief panel from real cycle data
   loadBriefFromCycle(cycle);
+  renderPhaseGuide(cycle);
   // Grey out chat input for closed/discarded cycles
   chatInput?.classList.toggle("is-readonly", isClosed);
   if (messageInput) messageInput.placeholder = isClosed ? "Ciclo cerrado — solo lectura" : "";
