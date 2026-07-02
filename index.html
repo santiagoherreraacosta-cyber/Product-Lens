@@ -53,7 +53,10 @@
             </span>
             <strong>Asistente Dropi</strong>
           </div>
-          <button id="themeToggle" class="icon-button" type="button" aria-label="Alternar tema">☾</button>
+          <div class="rail-top-actions">
+            <button id="themeToggle" class="icon-button" type="button" aria-label="Alternar tema">☾</button>
+            <button id="railToggle" class="icon-button" type="button" aria-label="Colapsar navegación" aria-pressed="false" title="Colapsar navegación">«</button>
+          </div>
         </header>
 
         <section class="rail-section active-cycle-section">
@@ -69,25 +72,25 @@
         </section>
 
         <footer class="rail-footer">
-          <button class="rail-link" type="button" data-view-target="home">
+          <button class="rail-link" type="button" data-view-target="home" title="Ciclos">
             <span aria-hidden="true">⌂</span>
-            Ciclos
+            <span class="rail-link-label">Ciclos</span>
           </button>
-          <button class="rail-link" type="button" data-view-target="library">
+          <button class="rail-link" type="button" data-view-target="library" title="Biblioteca de Patrones">
             <span aria-hidden="true">□</span>
-            Biblioteca de Patrones
+            <span class="rail-link-label">Biblioteca de Patrones</span>
           </button>
-          <button class="rail-link" type="button" data-view-target="context">
+          <button class="rail-link" type="button" data-view-target="context" title="Contexto Dropi">
             <span aria-hidden="true">ⓘ</span>
-            Contexto Dropi
+            <span class="rail-link-label">Contexto Dropi</span>
           </button>
-          <button class="rail-link" type="button" data-view-target="analytics">
+          <button class="rail-link" type="button" data-view-target="analytics" title="Métricas">
             <span aria-hidden="true">▤</span>
-            Métricas
+            <span class="rail-link-label">Métricas</span>
           </button>
-          <button id="logoutButton" class="rail-link rail-link--logout" type="button">
+          <button id="logoutButton" class="rail-link rail-link--logout" type="button" title="Cerrar sesión">
             <span aria-hidden="true">↩</span>
-            <span id="userEmail" class="user-email"></span>
+            <span id="userEmail" class="user-email rail-link-label"></span>
           </button>
         </footer>
       </aside>
