@@ -609,8 +609,8 @@ const causeLabelEs = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : 
 // A4 · unified library filtering state + facets
 const libFilters = { tipoCausa: "all", sub: "", level: "", search: "" };
 function populateLibraryFacets() {
-  const subs = [...new Set(patterns.map((p) => p.sub_perfil).filter(Boolean))].sort();
-  const levels = [...new Set(patterns.map((p) => p.transicion).filter(Boolean))].sort();
+  const subs = [...new Set(patterns.map((p) => p.sub_perfil).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const levels = [...new Set(patterns.map((p) => p.transicion).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   // Rebuild options fully (placeholder + values) — no querySelector, so no
   // possible null dereference.
   const fill = (sel, placeholder, values, cur, arrow) => {
