@@ -1527,15 +1527,20 @@ document.querySelector("#advancePhaseBtn")?.addEventListener("click", () => {
   advancePhase(false);
 });
 
-phaseStepper?.addEventListener("click", async (event) => {
-  const row = event.target.closest("[data-phase]");
-  if (!row || !currentCycleId) return;
-  const key = row.dataset.phase;
+// Navigate the active cycle to a phase (F0–F5). Shared by the stepper and ⌘K.
+async function goToPhase(key) {
+  if (!currentCycleId) { showToast("Selecciona un ciclo primero para ir a una fase."); return; }
   const phases = getPhases().map((p) => ({ ...p, state: p.key === key ? "active" : p.state === "active" ? "todo" : p.state }));
   const patch = { phases, activePhase: key, fase_actual: key };
   cycles = cycles.map((c) => c.id === currentCycleId ? { ...c, ...patch } : c);
   renderStepper();
   await updateCycle(patch);
+}
+
+phaseStepper?.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-phase]");
+  if (!row) return;
+  goToPhase(row.dataset.phase);
 });
 
 chatForm?.addEventListener("submit", (event) => {
@@ -1580,6 +1585,10 @@ commandPalette?.addEventListener("click", (event) => {
   if (command === "advance") {
     if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para avanzar de fase."); }
     else advancePhase(false);
+  }
+  if (/^F[0-5]$/.test(command)) {
+    if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para ir a una fase."); }
+    else { setView("workspace"); goToPhase(command); }
   }
   commandPalette.hidden = true;
 });
@@ -1647,6 +1656,15 @@ paletteSearch?.addEventListener("input", () => {
     const show = !term || button.textContent.toLowerCase().includes(term);
     button.classList.toggle("is-hidden", !show);
     if (show) visible++;
+  });
+  // Hide a category header when none of its buttons (siblings until the next
+  // header) are visible.
+  commandPalette.querySelectorAll("[data-palette-group]").forEach((group) => {
+    let anyVisible = false;
+    for (let el = group.nextElementSibling; el && !el.hasAttribute("data-palette-group"); el = el.nextElementSibling) {
+      if (el.matches("[data-palette-command]") && !el.classList.contains("is-hidden")) { anyVisible = true; break; }
+    }
+    group.classList.toggle("is-hidden", !anyVisible);
   });
   let emptyEl = commandPalette.querySelector(".palette-empty");
   if (visible === 0) {
