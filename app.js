@@ -232,13 +232,67 @@ async function loadCycles() {
   }
 }
 
-async function createCycle(title) {
+// A5 · Onboarding: styled "Nuevo ciclo" modal (replaces window.prompt).
+// Shared modal helper (P0): removes duplication across the modal builders.
+// Creates a .export-modal overlay mounted in .workspace, closes on backdrop
+// click and Esc, and returns the overlay for the caller to wire its buttons.
+function openModal(id, innerHtml) {
+  document.getElementById(id)?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = id;
+  overlay.className = "export-modal";
+  overlay.innerHTML = innerHtml;
+  const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey);
+  overlay.close = close;
+  workspace.appendChild(overlay);
+  return overlay;
+}
+
+function openNewCycleModal() {
+  const overlay = openModal("newCycleModal", `
+    <div class="export-modal-card newcycle-card">
+      <p class="eyebrow">Nuevo ciclo · F0 Sense</p>
+      <h2 class="pd-title">Empieza por un comportamiento, no por una feature.</h2>
+      <label class="nc-label" for="ncBehavior">¿Qué seller, haciendo qué, no está haciendo qué?</label>
+      <textarea id="ncBehavior" class="nc-textarea" rows="3" placeholder="El Rebuscador Digital no configura su 2º envío dentro de las 72h tras el primer pedido…"></textarea>
+      <div class="nc-grid">
+        <div><label class="nc-label" for="ncSub">Sub-perfil (opcional)</label><input id="ncSub" class="nc-input" placeholder="Rebuscador Digital" /></div>
+        <div><label class="nc-label" for="ncTrans">Transición (opcional)</label><input id="ncTrans" class="nc-input" placeholder="Setup_Aha" /></div>
+      </div>
+      <p id="ncError" class="login-error" hidden></p>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-nc="cancel">Cancelar</button>
+        <button type="button" class="primary-action" data-nc="create">Crear ciclo · abrir F0</button>
+      </div>
+    </div>`);
+  const q = (sel) => overlay.querySelector(sel);
+  q('[data-nc="cancel"]')?.addEventListener("click", overlay.close);
+  const submit = async () => {
+    const behavior = (q("#ncBehavior")?.value ?? "").trim();
+    if (!behavior) { const err = q("#ncError"); if (err) { err.textContent = "Describe el comportamiento para empezar."; err.hidden = false; } return; }
+    overlay.close();
+    await createCycle(behavior, {
+      sub_perfil: (q("#ncSub")?.value ?? "").trim().replace(/\s+/g, "_") || null,
+      transicion: (q("#ncTrans")?.value ?? "").trim() || null,
+    });
+  };
+  q('[data-nc="create"]')?.addEventListener("click", submit);
+  q("#ncBehavior")?.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
+  setTimeout(() => q("#ncBehavior")?.focus(), 30);
+}
+
+async function createCycle(title, extra = {}) {
   try {
     const res = await fetch("/api/cycles", {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
         title,
+        sub_perfil: extra.sub_perfil || null,
+        transicion: extra.transicion || null,
         phases: structuredClone(phaseSeed),
         activePhase: "F0",
         riskAccepted: false,
@@ -550,23 +604,57 @@ async function loadPatterns() {
   }
 }
 
+const causeLabelEs = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : c === "P" ? "Prompt" : c;
+
+// A4 · unified library filtering state + facets
+const libFilters = { tipoCausa: "all", sub: "", level: "", search: "" };
+function populateLibraryFacets() {
+  const subs = [...new Set(patterns.map((p) => p.sub_perfil).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const levels = [...new Set(patterns.map((p) => p.transicion).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  // Rebuild options fully (placeholder + values) — no querySelector, so no
+  // possible null dereference.
+  const fill = (sel, placeholder, values, cur, arrow) => {
+    if (!sel) return;
+    const opts = [`<option value="">${placeholder}</option>`].concat(
+      values.map((v) => {
+        const label = arrow ? v.replace(/_/g, "→") : v.replace(/_/g, " ");
+        return `<option value="${escapeHtml(v)}"${v === cur ? " selected" : ""}>${escapeHtml(label)}</option>`;
+      })
+    );
+    sel.innerHTML = opts.join("");
+  };
+  fill(document.getElementById("patternSubProfile"), "Sub-perfil", subs, libFilters.sub, false);
+  fill(document.getElementById("patternLevel"), "Nivel cognitivo", levels, libFilters.level, true);
+}
+function applyLibraryFilters() {
+  const { tipoCausa, sub, level, search } = libFilters;
+  let list = patterns;
+  if (tipoCausa === "patron" || tipoCausa === "anti_patron") list = list.filter((p) => p.tipo === tipoCausa);
+  else if (["m", "a", "p"].includes(tipoCausa)) list = list.filter((p) => (p.causa ?? "").toUpperCase() === tipoCausa.toUpperCase());
+  if (sub) list = list.filter((p) => p.sub_perfil === sub);
+  if (level) list = list.filter((p) => p.transicion === level);
+  if (search) list = list.filter((p) =>
+    [p.nombre, p.aprendizaje, p.sub_perfil, p.causa, p.transicion].some((x) => (x ?? "").toLowerCase().includes(search)));
+  renderPatternsList(list);
+}
+
 function renderPatternsList(list = patterns) {
+  populateLibraryFacets();
   if (!list.length) {
-    patternsList.innerHTML = `<p class="empty-library">Aquí aparecerán los aprendizajes del equipo. Para crear el primero, lleva un ciclo hasta F5 · Distill y ciérralo con un aprendizaje.</p>`;
+    patternsList.innerHTML = `<p class="empty-library">${patterns.length ? "Sin patrones para este filtro." : "Aquí aparecerán los aprendizajes del equipo. Para crear el primero, lleva un ciclo hasta F5 · Distill y ciérralo con un aprendizaje."}</p>`;
     return;
   }
-  const causeLabel = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : c === "P" ? "Prompt" : c;
   patternsList.innerHTML = list
     .map((p) => {
       const isAnti = p.tipo === "anti_patron";
       const since = p.createdAt ? new Date(p.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
       const chips = [
-        p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabel(p.causa))}</span>` : "",
+        p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabelEs(p.causa))}</span>` : "",
         p.sub_perfil ? `<span class="chip">${escapeHtml(p.sub_perfil.replace(/_/g, " "))}</span>` : "",
         p.transicion ? `<span class="chip">${escapeHtml(p.transicion.replace(/_/g, "→"))}</span>` : "",
       ].join("");
       return `
-        <article class="pattern-card">
+        <article class="pattern-card" data-pattern-open="${escapeHtml(p.id)}" role="button" tabindex="0">
           <span class="pattern-badge ${isAnti ? "anti_patron" : "patron"}">${isAnti ? "Anti-patrón" : "Patrón"}</span>
           <h2>${escapeHtml(p.nombre ?? p.name ?? "Sin nombre")}</h2>
           ${p.aprendizaje ? `<p class="pattern-learning">${escapeHtml(p.aprendizaje)}</p>` : ""}
@@ -582,7 +670,45 @@ function renderPatternsList(list = patterns) {
     .join("");
 
   patternsList.querySelectorAll(".reuse-btn").forEach((btn) => {
-    btn.addEventListener("click", () => reusePattern(btn.dataset.patternId));
+    btn.addEventListener("click", (e) => { e.stopPropagation(); reusePattern(btn.dataset.patternId); });
+  });
+  patternsList.querySelectorAll("[data-pattern-open]").forEach((card) => {
+    card.addEventListener("click", () => openPatternDetail(card.dataset.patternOpen));
+  });
+}
+
+// A4 · pattern detail modal
+function openPatternDetail(id) {
+  const p = patterns.find((x) => x.id === id);
+  if (!p) return;
+  const isAnti = p.tipo === "anti_patron";
+  const row = (label, val) => val ? `<div class="pd-row"><span class="section-label">${escapeHtml(label)}</span><p>${escapeHtml(val)}</p></div>` : "";
+  const overlay = openModal("patternDetail", `
+    <div class="export-modal-card pattern-detail-card">
+      <span class="pattern-badge ${isAnti ? "anti_patron" : "patron"}">${isAnti ? "Anti-patrón" : "Patrón"}</span>
+      <h2 class="pd-title">${escapeHtml(p.nombre ?? "Sin nombre")}</h2>
+      <div class="chips">
+        ${p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabelEs(p.causa))}</span>` : ""}
+        ${p.sub_perfil ? `<span class="chip">${escapeHtml(p.sub_perfil.replace(/_/g, " "))}</span>` : ""}
+        ${p.transicion ? `<span class="chip">${escapeHtml(p.transicion.replace(/_/g, "→"))}</span>` : ""}
+      </div>
+      ${row("Qué aprendimos", p.aprendizaje)}
+      ${row("Delta de métrica", p.delta_metrica)}
+      ${row("Evidencia", p.evidencia)}
+      <div class="pd-meta"><span>${p.veces_reutilizado ?? 0}× reutilizado</span>${p.ciclo_origen_id ? `<button class="inline-link" type="button" data-pd-origin="${escapeHtml(p.ciclo_origen_id)}">Ver ciclo de origen →</button>` : ""}</div>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-pd="close">Cerrar</button>
+        <button type="button" class="primary-action" data-pd="reuse">Reusar patrón</button>
+      </div>
+    </div>`);
+  overlay.querySelector('[data-pd="close"]')?.addEventListener("click", overlay.close);
+  overlay.querySelector('[data-pd="reuse"]')?.addEventListener("click", () => { overlay.close(); reusePattern(p.id); });
+  const origin = overlay.querySelector("[data-pd-origin]");
+  if (origin) origin.addEventListener("click", () => {
+    overlay.close();
+    const c = cycles.find((x) => x.id === p.ciclo_origen_id);
+    if (c) { currentCycleId = c.id; renderActiveCycle(); renderStepper(); loadMessages(c.id); setView("workspace"); }
+    else showToast("El ciclo de origen no está disponible.");
   });
 }
 
@@ -873,8 +999,8 @@ async function sendMessage() {
   chatInput.classList.remove("has-text");
 
   if (text.startsWith("/nuevo-ciclo")) {
-    const title = text.replace("/nuevo-ciclo", "").trim() || prompt("Nombre del ciclo:");
-    if (title) await createCycle(title);
+    const title = text.replace("/nuevo-ciclo", "").trim();
+    if (title) await createCycle(title); else openNewCycleModal();
     return;
   }
 
@@ -1250,12 +1376,8 @@ function exportBriefFlow(force = false) {
 }
 
 function openExportModal(missing) {
-  closeExportModal();
   const items = missing.map((m) => `<li>${escapeHtml(m.label)}</li>`).join("");
-  const overlay = document.createElement("div");
-  overlay.id = "exportModal";
-  overlay.className = "export-modal";
-  overlay.innerHTML = `
+  const overlay = openModal("exportModal", `
     <div class="export-modal-card">
       <p class="section-label">Exportar brief</p>
       <p class="export-modal-msg">Hay ${missing.length} campo(s) sin confirmar. La IA los trata como <strong>supuestos</strong>.</p>
@@ -1264,12 +1386,9 @@ function openExportModal(missing) {
         <button type="button" class="secondary-action" data-export="complete">Completar campos</button>
         <button type="button" class="primary-action" data-export="force">Exportar con supuestos</button>
       </div>
-    </div>`;
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeExportModal(); });
-  overlay.querySelector('[data-export="complete"]').addEventListener("click", closeExportModal);
-  overlay.querySelector('[data-export="force"]').addEventListener("click", () => exportBriefFlow(true));
-  // Mount inside .workspace so design tokens (and dark mode) apply.
-  workspace.appendChild(overlay);
+    </div>`);
+  overlay.querySelector('[data-export="complete"]')?.addEventListener("click", overlay.close);
+  overlay.querySelector('[data-export="force"]')?.addEventListener("click", () => exportBriefFlow(true));
 }
 
 function closeExportModal() {
@@ -1478,15 +1597,8 @@ viewButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
 });
 
-newCycleButton?.addEventListener("click", () => {
-  const title = prompt("Nombre del ciclo (describe el comportamiento):");
-  if (title?.trim()) createCycle(title.trim());
-});
-
-newCycleEmpty?.addEventListener("click", () => {
-  const title = prompt("Nombre del ciclo (describe el comportamiento):");
-  if (title?.trim()) createCycle(title.trim());
-});
+newCycleButton?.addEventListener("click", openNewCycleModal);
+newCycleEmpty?.addEventListener("click", openNewCycleModal);
 
 // Home filters (A3)
 document.querySelector("#cyclesFilters")?.addEventListener("click", (e) => {
@@ -1505,34 +1617,22 @@ document.querySelectorAll("[data-example-cycle]").forEach((btn) => {
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));
 experimentSwitch?.addEventListener("click", () => setDeliverable("experiment"));
 
-// Library filters (in-memory, no fetch)
-document.querySelector(".filter-row")?.addEventListener("click", (e) => {
+// Library filters — unified (A4). Scoped to #patternFilters (not the Home row).
+document.querySelector("#patternFilters")?.addEventListener("click", (e) => {
   const btn = e.target.closest(".filter");
   if (!btn) return;
-  document.querySelectorAll(".filter").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll("#patternFilters .filter").forEach((b) => b.classList.remove("active"));
   btn.classList.add("active");
-  const f = btn.dataset.filter ?? "all";
-  const filtered = f === "all" ? patterns
-    : (f === "patron" || f === "anti_patron") ? patterns.filter((p) => p.tipo === f)
-    : patterns.filter((p) => (p.causa ?? "").toUpperCase() === f.toUpperCase());
-  renderPatternsList(filtered);
+  libFilters.tipoCausa = btn.dataset.filter ?? "all";
+  applyLibraryFilters();
 });
+document.querySelector("#patternSubProfile")?.addEventListener("change", (e) => { libFilters.sub = e.target.value; applyLibraryFilters(); });
+document.querySelector("#patternLevel")?.addEventListener("change", (e) => { libFilters.level = e.target.value; applyLibraryFilters(); });
 
-// Pattern library search (in-memory, debounced 200ms)
 let _searchTimer = null;
 document.querySelector("#patternSearch")?.addEventListener("input", (e) => {
   clearTimeout(_searchTimer);
-  _searchTimer = setTimeout(() => {
-    const term = e.target.value.toLowerCase().trim();
-    if (!term) { renderPatternsList(patterns); return; }
-    renderPatternsList(patterns.filter((p) =>
-      (p.nombre ?? "").toLowerCase().includes(term) ||
-      (p.aprendizaje ?? "").toLowerCase().includes(term) ||
-      (p.sub_perfil ?? "").toLowerCase().includes(term) ||
-      (p.causa ?? "").toLowerCase().includes(term) ||
-      (p.transicion ?? "").toLowerCase().includes(term)
-    ));
-  }, 200);
+  _searchTimer = setTimeout(() => { libFilters.search = e.target.value.toLowerCase().trim(); applyLibraryFilters(); }, 200);
 });
 
 // Close cycle button
