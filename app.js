@@ -196,6 +196,7 @@ function logout() {
 // --- Init ---
 async function init() {
   applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  applyRailCollapsed(localStorage.getItem(RAIL_KEY) === "1");
   rotatePlaceholder();
   setInterval(rotatePlaceholder, 4200);
   await checkAuth();
@@ -217,8 +218,15 @@ async function loadInitialData() {
 }
 
 // --- Cycles ---
+// B6 · loading skeletons — placeholder cards while a list is fetching.
+function skeletonCards(n = 3) {
+  return Array.from({ length: n }, () =>
+    `<div class="skeleton-card" aria-hidden="true"><span class="sk-line sk-w40"></span><span class="sk-line sk-w80"></span><span class="sk-line sk-w60"></span></div>`
+  ).join("");
+}
+
 async function loadCycles() {
-  cyclesList.innerHTML = `<p class="loading-state">Cargando ciclos…</p>`;
+  cyclesList.innerHTML = skeletonCards(3);
   try {
     const res = await apiFetch("/api/cycles", { headers: authHeaders() });
     if (!res.ok) throw new Error(`Error ${res.status}`);
@@ -593,6 +601,7 @@ async function closeCycle() {
 
 // --- Patterns ---
 async function loadPatterns() {
+  if (currentView === "library") patternsList.innerHTML = skeletonCards(3);
   try {
     const res = await apiFetch("/api/patterns", { headers: authHeaders() });
     if (!res.ok) throw new Error(`Error ${res.status}`);
@@ -860,6 +869,24 @@ function applyTheme(theme) {
   localStorage.setItem(THEME_KEY, theme);
   themeToggle.textContent = theme === "dark" ? "☀" : "☾";
 }
+
+// B6 · collapsible rail (icon-only 56px) with persisted state.
+const RAIL_KEY = "dropi.rail.collapsed";
+const railToggle = document.querySelector("#railToggle");
+function applyRailCollapsed(collapsed) {
+  workspace.classList.toggle("rail-collapsed", collapsed);
+  if (railToggle) {
+    railToggle.textContent = collapsed ? "»" : "«";
+    railToggle.setAttribute("aria-pressed", String(collapsed));
+    railToggle.setAttribute("aria-label", collapsed ? "Expandir navegación" : "Colapsar navegación");
+    railToggle.title = railToggle.getAttribute("aria-label");
+  }
+}
+railToggle?.addEventListener("click", () => {
+  const collapsed = !workspace.classList.contains("rail-collapsed");
+  localStorage.setItem(RAIL_KEY, collapsed ? "1" : "0");
+  applyRailCollapsed(collapsed);
+});
 
 // --- Stepper ---
 function renderStepper(pulseKey = null) {

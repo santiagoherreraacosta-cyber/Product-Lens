@@ -312,6 +312,30 @@ button { cursor: pointer; }
   width: 100%;
 }
 .rail-link:hover { background: var(--hover); color: var(--text); }
+.rail-top-actions { align-items: center; display: flex; gap: 4px; }
+
+/* B6 · collapsed rail (icon-only) */
+.rail { transition: width 180ms ease; }
+.workspace.rail-collapsed .rail { width: 60px; }
+.workspace.rail-collapsed .brand-lockup strong,
+.workspace.rail-collapsed #themeToggle,
+.workspace.rail-collapsed .active-cycle-section,
+.workspace.rail-collapsed .rail-section .section-label,
+.workspace.rail-collapsed .rail-link-label,
+.workspace.rail-collapsed .phase-note,
+.workspace.rail-collapsed .phase-label-line { display: none; }
+.workspace.rail-collapsed .rail-top { flex-direction: column; gap: 8px; }
+.workspace.rail-collapsed .rail-section { padding: 0 8px 12px; }
+.workspace.rail-collapsed .rail-footer { margin: 4px 8px 0; }
+.workspace.rail-collapsed .rail-link { justify-content: center; padding: 9px 0; }
+.workspace.rail-collapsed .phase-row { grid-template-columns: 22px; justify-content: center; }
+
+/* B6 · loading skeletons */
+.skeleton-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-xl); display: flex; flex-direction: column; gap: 9px; padding: 16px 18px; }
+.sk-line { background: linear-gradient(90deg, var(--hover) 25%, var(--border) 37%, var(--hover) 63%); background-size: 400% 100%; border-radius: 6px; height: 11px; animation: sk-shimmer 1.4s ease infinite; }
+.sk-w40 { width: 40%; } .sk-w60 { width: 60%; } .sk-w80 { width: 80%; }
+@keyframes sk-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@media (prefers-reduced-motion: reduce) { .sk-line { animation: none; } }
 
 .conversation-shell { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .conversation-header {
