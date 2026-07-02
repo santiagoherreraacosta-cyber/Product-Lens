@@ -15,15 +15,16 @@
   <body>
     <!-- Login screen (shown when no valid token) -->
     <div id="loginView" class="login-screen" hidden>
+      <div class="login-aurora" aria-hidden="true"></div>
       <div class="login-card">
         <div class="login-brand">
-          <span class="logo-box" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4.5 8 12 12.2 19.5 8"/><path d="M12 12.2V21"/></svg>
+          <span class="brand-mark brand-mark--lg" aria-hidden="true">
+            <svg viewBox="0 0 128 128" role="img" aria-label="Product Lens"><path d="M82.9 106.4 A48 48 0 1 1 104.2 87.3" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/><circle cx="64" cy="64" r="16" fill="#FF6B00"/></svg>
           </span>
-          <strong>Asistente Dropi</strong>
+          <div class="login-brand-text"><strong>Asistente Dropi</strong><span>Product Lens</span></div>
         </div>
-        <h1>Bienvenido</h1>
-        <p class="login-subtitle">Entra con tus credenciales para acceder al workspace.</p>
+        <h1>Del comportamiento al patrón, con rigor.</h1>
+        <p class="login-subtitle">Entra para retomar tus ciclos de decisión.</p>
         <form id="loginForm" novalidate>
           <div class="field-group">
             <label for="loginEmail">Email</label>
@@ -46,8 +47,8 @@
       <aside class="rail scrim" aria-label="Navegación del workspace">
         <header class="rail-top">
           <div class="brand-lockup">
-            <span class="logo-box" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4.5 8 12 12.2 19.5 8"/><path d="M12 12.2V21"/></svg>
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 128 128" role="img" aria-label="Product Lens"><path d="M82.9 106.4 A48 48 0 1 1 104.2 87.3" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/><circle cx="64" cy="64" r="16" fill="#FF6B00"/></svg>
             </span>
             <strong>Asistente Dropi</strong>
           </div>
@@ -96,9 +97,22 @@
             <div><p class="eyebrow">Home</p><h1>Ciclos</h1><p>Retoma decisiones en curso o arranca desde un comportamiento, no desde una feature.</p></div>
             <button id="newCycleButton" class="primary-action" type="button">Nuevo ciclo</button>
           </header>
-          <div id="cyclesList" class="cycle-grid" aria-label="Ciclos"></div>
+          <div id="cyclesFilters" class="filter-row" role="tablist">
+            <button class="filter active" type="button" data-cyclefilter="all">Todos</button>
+            <button class="filter" type="button" data-cyclefilter="activo">En curso</button>
+            <button class="filter" type="button" data-cyclefilter="cerrado">Cerrados</button>
+            <button class="filter cause-filter motivation" type="button" data-cyclefilter="M"><span></span>Motivación</button>
+            <button class="filter cause-filter ability" type="button" data-cyclefilter="A"><span></span>Ability</button>
+            <button class="filter cause-filter prompt" type="button" data-cyclefilter="P"><span></span>Prompt</button>
+          </div>
+          <div id="cyclesList" aria-label="Ciclos"></div>
           <section class="empty-teacher" id="emptyCycles">
             <p>Empieza por un comportamiento, no por una feature. ¿Qué seller, haciendo qué, no está haciendo qué?</p>
+            <div class="example-chips">
+              <button type="button" data-example-cycle="Activación post-Aha: el Rebuscador Digital no configura su 2º envío en 72h">Activación post-Aha</button>
+              <button type="button" data-example-cycle="Recompra día 7: el Seller Explorador no vuelve a comprar tras el primer pedido">Recompra día 7</button>
+              <button type="button" data-example-cycle="Abandono de checkout: el seller nuevo no completa su primer envío">Abandono de checkout</button>
+            </div>
             <button class="primary-action" type="button" id="newCycleEmpty">Nuevo ciclo</button>
           </section>
         </section>

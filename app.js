@@ -293,6 +293,54 @@ async function updateCycle(patch) {
   }
 }
 
+let cyclesFilter = "all";
+
+// Cognitive ladder for the transition path on cards (A3).
+const COG_LEVELS = ["Setup", "Aha", "Hábito", "Maestría"];
+function cognitivePathHtml(transicion) {
+  if (!transicion) return "";
+  const parts = String(transicion).split(/[_→-]/).map((s) => s.trim());
+  const from = parts[0], to = parts[1];
+  return `<div class="cognitive-path">${COG_LEVELS.map((lvl) =>
+    (lvl === from || lvl === to) ? `<strong>${escapeHtml(lvl)}</strong>` : `<span class="muted-step">${escapeHtml(lvl)}</span>`
+  ).join('<span>›</span>')}</div>`;
+}
+
+function cycleCardHtml(cycle) {
+  const phases = cycle.phases ?? phaseSeed;
+  const active = cycle.fase_actual ?? cycle.activePhase ?? "F0";
+  const activePhaseObj = phases.find((p) => p.key === active) ?? phases[0];
+  const miniDots = phases.map((p) => `<span class="${p.state}"></span>`).join("");
+  const since = new Date(cycle.updatedAt ?? cycle.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+  const causeLabel = cycle.causa === "M" ? "Motivación" : cycle.causa === "A" ? "Ability" : cycle.causa === "P" ? "Prompt" : null;
+  const chips = [
+    cycle.sub_perfil ? `<span class="chip">${escapeHtml(cycle.sub_perfil.replace(/_/g, " "))}</span>` : "",
+    causeLabel ? `<span class="chip cause-chip ${escapeHtml(cycle.causa)}">${escapeHtml(causeLabel)}</span>` : "",
+  ].join("");
+  const statusPill = cycle.estado === "cerrado"
+    ? `<span class="status-pill closed">${cycle.resultado_cierre === "matado" ? "✗ Matado" : cycle.resultado_cierre === "iterando" ? "↻ Iterando" : "✓ Escalado"}</span>`
+    : cycle.estado === "descartado"
+      ? '<span class="status-pill discarded">Descartado</span>'
+      : '<span class="status-pill live">En curso</span>';
+  const isClosed = cycle.estado && cycle.estado !== "activo";
+  return `
+    <article class="dashboard-card ${isClosed ? "is-closed" : ""} ${cycle.id === currentCycleId ? "is-active" : ""}" data-cycle-id="${escapeHtml(cycle.id)}">
+      <div class="card-topline">${statusPill}<span>${escapeHtml(since)}</span></div>
+      <h2>${escapeHtml(cycle.title)}</h2>
+      ${chips ? `<div class="chips">${chips}</div>` : ""}
+      ${cognitivePathHtml(cycle.transicion)}
+      <div class="mini-stepper" aria-label="Fases F0 a F5">${miniDots}</div>
+      <footer><strong>${escapeHtml(activePhaseObj.key)} · ${escapeHtml(activePhaseObj.label)}</strong>${cycle.riskAccepted ? '<span class="risk-count">riesgo abierto</span>' : ""}</footer>
+    </article>`;
+}
+
+function matchesCycleFilter(cycle) {
+  if (cyclesFilter === "all") return true;
+  if (cyclesFilter === "activo") return (cycle.estado ?? "activo") === "activo";
+  if (cyclesFilter === "cerrado") return cycle.estado === "cerrado" || cycle.estado === "descartado";
+  return cycle.causa === cyclesFilter; // M/A/P
+}
+
 function renderCyclesList() {
   if (!cycles.length) {
     cyclesList.innerHTML = "";
@@ -300,34 +348,14 @@ function renderCyclesList() {
     return;
   }
   emptyCycles.hidden = true;
-  cyclesList.innerHTML = cycles
-    .map((cycle) => {
-      const phases = cycle.phases ?? phaseSeed;
-      const active = cycle.activePhase ?? "F0";
-      const activePhaseObj = phases.find((p) => p.key === active) ?? phases[0];
-      const miniDots = phases.map((p) => `<span class="${p.state}"></span>`).join("");
-      const since = new Date(cycle.updatedAt ?? cycle.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
-      const causeLabel = cycle.causa === "M" ? "Motivación" : cycle.causa === "A" ? "Ability" : cycle.causa === "P" ? "Prompt" : null;
-      const chips = [
-        cycle.sub_perfil ? `<span class="chip">${escapeHtml(cycle.sub_perfil.replace(/_/g, " "))}</span>` : "",
-        causeLabel ? `<span class="chip cause-chip ${escapeHtml(cycle.causa)}">${escapeHtml(causeLabel)}</span>` : "",
-        cycle.transicion ? `<span class="chip">${escapeHtml(cycle.transicion.replace(/_/g, "→"))}</span>` : "",
-      ].join("");
-      const statusPill = cycle.estado === "cerrado"
-        ? '<span class="status-pill closed">Cerrado</span>'
-        : cycle.estado === "descartado"
-          ? '<span class="status-pill discarded">Descartado</span>'
-          : '<span class="status-pill live">En curso</span>';
-      return `
-        <article class="dashboard-card ${cycle.id === currentCycleId ? "is-active" : ""}" data-cycle-id="${escapeHtml(cycle.id)}">
-          <div class="card-topline">${statusPill}<span>${escapeHtml(since)}</span></div>
-          <h2>${escapeHtml(cycle.title)}</h2>
-          ${chips ? `<div class="chips">${chips}</div>` : ""}
-          <div class="mini-stepper" aria-label="Fases F0 a F5">${miniDots}</div>
-          <footer><strong>${escapeHtml(activePhaseObj.key)} · ${escapeHtml(activePhaseObj.label)}</strong>${cycle.riskAccepted ? '<span class="risk-count">riesgo abierto</span>' : ""}</footer>
-        </article>`;
-    })
-    .join("");
+  const filtered = cycles.filter(matchesCycleFilter);
+  const open = filtered.filter((c) => (c.estado ?? "activo") === "activo");
+  const closed = filtered.filter((c) => c.estado === "cerrado" || c.estado === "descartado");
+  const section = (label, list) => list.length
+    ? `<div class="cycle-section"><p class="section-label">${label} · ${list.length}</p><div class="cycle-grid">${list.map(cycleCardHtml).join("")}</div></div>`
+    : "";
+  const body = `${section("En curso", open)}${section("Cerrados", closed)}`;
+  cyclesList.innerHTML = body || `<p class="loading-state">Sin ciclos para este filtro.</p>`;
 
   cyclesList.querySelectorAll("[data-cycle-id]").forEach((card) => {
     card.addEventListener("click", () => {
@@ -1458,6 +1486,20 @@ newCycleButton?.addEventListener("click", () => {
 newCycleEmpty?.addEventListener("click", () => {
   const title = prompt("Nombre del ciclo (describe el comportamiento):");
   if (title?.trim()) createCycle(title.trim());
+});
+
+// Home filters (A3)
+document.querySelector("#cyclesFilters")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-cyclefilter]");
+  if (!btn) return;
+  cyclesFilter = btn.dataset.cyclefilter;
+  document.querySelectorAll("#cyclesFilters .filter").forEach((b) => b.classList.toggle("active", b === btn));
+  renderCyclesList();
+});
+
+// Empty-state example chips (A3) → create a cycle from the example behavior
+document.querySelectorAll("[data-example-cycle]").forEach((btn) => {
+  btn.addEventListener("click", () => createCycle(btn.dataset.exampleCycle));
 });
 
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));

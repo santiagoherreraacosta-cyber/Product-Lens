@@ -498,94 +498,94 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .context-document textarea { width: 100%; min-height: 150px; margin: 12px 0; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--bg); color: var(--text); font: 13px/1.55 "JetBrains Mono", monospace; resize: vertical; }
 .context-document textarea:focus { outline: 2px solid var(--teal-soft); border-color: var(--teal); }
 
-/* --- Login screen --- */
+/* --- Brand mark (Product Lens: lens arc + orange dot, theme-aware) --- */
+.brand-mark { align-items: center; color: #1F2328; display: inline-flex; flex: none; height: 26px; justify-content: center; width: 26px; }
+.brand-mark svg { height: 100%; width: 100%; }
+.brand-mark--lg { height: 44px; width: 44px; }
+.workspace[data-theme="dark"] .brand-mark { color: #ECECEC; }
+
+/* --- Login screen (rediseño "cool") --- */
 .login-screen {
   align-items: center;
-  background: var(--bg, #FAFAF8);
+  background:
+    radial-gradient(120% 90% at 50% -10%, #FFF4EC 0%, #FAFAF8 46%),
+    #FAFAF8;
   display: flex;
   justify-content: center;
   min-height: 100vh;
+  overflow: hidden;
   padding: 24px;
+  position: relative;
 }
+/* Soft brand aurora behind the card */
+.login-aurora {
+  background:
+    radial-gradient(closest-side, rgba(255,107,0,.20), transparent 70%) 18% 22% / 55vmax 55vmax no-repeat,
+    radial-gradient(closest-side, rgba(139,92,246,.12), transparent 70%) 82% 78% / 48vmax 48vmax no-repeat,
+    radial-gradient(closest-side, rgba(20,184,166,.10), transparent 70%) 78% 12% / 40vmax 40vmax no-repeat;
+  filter: blur(8px);
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  animation: aurora-float 18s ease-in-out infinite alternate;
+}
+@keyframes aurora-float { from { transform: translateY(-2%) scale(1); } to { transform: translateY(2%) scale(1.06); } }
 .login-card {
-  background: var(--panel, #fff);
-  border: 1px solid var(--line, #E8E8E3);
-  border-radius: 20px;
-  box-shadow: 0 4px 24px rgba(0,0,0,.08);
-  max-width: 400px;
-  padding: 36px 32px;
+  background: rgba(255,255,255,.82);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 22px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 20px 60px rgba(31,35,40,.14), 0 2px 8px rgba(31,35,40,.06);
+  max-width: 408px;
+  padding: 34px 34px 32px;
+  position: relative;
   width: 100%;
+  z-index: 1;
 }
-.login-brand {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  margin-bottom: 28px;
-}
-.login-brand strong {
-  color: var(--text, #1F2328);
-  font-size: 16px;
-  font-weight: 700;
-}
-.login-card h1 {
-  color: var(--text, #1F2328);
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0 0 6px;
-}
-.login-subtitle {
-  color: var(--text2, #6B7280);
-  font-size: 14px;
-  margin: 0 0 24px;
-}
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-.field-group label {
-  color: var(--text2, #6B7280);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-}
+.login-brand { align-items: center; display: flex; gap: 12px; margin-bottom: 22px; }
+.login-brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.login-brand-text strong { color: #1F2328; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.login-brand-text span { color: #FF6B00; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.login-card h1 { color: #1F2328; font-size: 25px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; margin: 0 0 8px; }
+.login-subtitle { color: #6B7280; font-size: 14px; margin: 0 0 24px; }
+.field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field-group label { color: #6B7280; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
 .field-group input {
-  background: var(--bg, #FAFAF8);
-  border: 1px solid var(--line, #E8E8E3);
-  border-radius: 10px;
-  color: var(--text, #1F2328);
-  font-size: 14px;
-  padding: 10px 12px;
-  transition: border-color .15s;
+  background: #FFFFFF;
+  border: 1px solid #E8E8E3;
+  border-radius: 11px;
+  color: #1F2328;
+  font-size: 14.5px;
+  padding: 11px 13px;
+  transition: border-color .15s, box-shadow .15s;
   width: 100%;
 }
-.field-group input:focus {
-  border-color: var(--brand, #FF6B00);
-  outline: none;
-}
+.field-group input::placeholder { color: #B8BCC4; }
+.field-group input:focus { border-color: #FF6B00; box-shadow: 0 0 0 3px rgba(255,107,0,.16); outline: none; }
 .login-submit {
-  background: var(--brand, #FF6B00);
+  background: linear-gradient(180deg, #FF8A33 0%, #FF6B00 100%);
   border: 0;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(255,107,0,.25);
+  border-radius: 11px;
+  box-shadow: 0 6px 16px rgba(255,107,0,.32), 0 1px 0 rgba(255,255,255,.4) inset;
   color: #fff;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 700;
-  margin-top: 8px;
-  padding: 11px;
-  transition: opacity .15s;
+  letter-spacing: .01em;
+  margin-top: 10px;
+  padding: 12px;
+  transition: transform .12s ease, box-shadow .15s, filter .15s;
   width: 100%;
 }
-.login-submit:hover { opacity: .88; }
-.login-submit:disabled { opacity: .5; cursor: not-allowed; }
+.login-submit:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(255,107,0,.4); filter: brightness(1.03); }
+.login-submit:active { transform: translateY(0); }
+.login-submit:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
 .login-error {
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
-  border-radius: 8px;
-  color: #EF4444;
+  background: #FDECEC;
+  border: 1px solid #F3B7B7;
+  border-radius: 9px;
+  color: #C23B3B;
   font-size: 13px;
   margin-bottom: 10px;
   padding: 9px 12px;
@@ -751,3 +751,14 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 /* --- Experiment "live" (A2): pulso en el estado Corriendo --- */
 .running-status.is-live span { animation: livepulse 1.4s ease-in-out infinite; }
 @keyframes livepulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.35); } }
+
+/* --- Home A3: secciones, transición en card, chips de ejemplo --- */
+.cycle-section { margin: 0 auto 18px; max-width: 1080px; }
+.cycle-section .section-label { margin: 6px 0 10px; }
+.dashboard-card .cognitive-path { margin: 2px 0 10px; }
+.dashboard-card.is-closed { opacity: .82; }
+.dashboard-card.is-closed:hover { opacity: 1; }
+.status-pill.closed { background: var(--green-soft); color: var(--green); }
+.example-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.example-chips button { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; color: var(--text2); font-size: 12.5px; font-weight: 600; padding: 7px 12px; transition: border-color .14s, color .14s; }
+.example-chips button:hover { border-color: var(--brand-tint-br); color: var(--text); }
