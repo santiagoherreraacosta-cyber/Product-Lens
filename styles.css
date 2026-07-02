@@ -507,6 +507,9 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .running-status span { background: var(--green); border-radius: 999px; height: 7px; width: 7px; }
 .palette-input { min-width: 100%; }
 .palette-card button.is-hidden { display: none; }
+.palette-group { color: var(--text3); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 8px 4px 2px; }
+.palette-group:first-of-type { margin-top: 4px; }
+.palette-group.is-hidden { display: none; }
 @media (max-width: 1120px) { .cycle-grid, .pattern-grid { grid-template-columns: 1fr; } .context-view { grid-template-columns: 1fr; } .toc { display: none; } }
 .context-documents { display: grid; gap: 18px; }
 .context-document { border: 1px solid var(--line); border-radius: 18px; padding: 16px; background: var(--panel); }
