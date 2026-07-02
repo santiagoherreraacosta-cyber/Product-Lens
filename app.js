@@ -268,19 +268,20 @@ function openNewCycleModal() {
         <button type="button" class="primary-action" data-nc="create">Crear ciclo · abrir F0</button>
       </div>
     </div>`);
-  overlay.querySelector('[data-nc="cancel"]').addEventListener("click", overlay.close);
+  const q = (sel) => overlay.querySelector(sel);
+  q('[data-nc="cancel"]')?.addEventListener("click", overlay.close);
   const submit = async () => {
-    const behavior = overlay.querySelector("#ncBehavior").value.trim();
-    if (!behavior) { const err = overlay.querySelector("#ncError"); err.textContent = "Describe el comportamiento para empezar."; err.hidden = false; return; }
+    const behavior = (q("#ncBehavior")?.value ?? "").trim();
+    if (!behavior) { const err = q("#ncError"); if (err) { err.textContent = "Describe el comportamiento para empezar."; err.hidden = false; } return; }
     overlay.close();
     await createCycle(behavior, {
-      sub_perfil: overlay.querySelector("#ncSub").value.trim().replace(/\s+/g, "_") || null,
-      transicion: overlay.querySelector("#ncTrans").value.trim() || null,
+      sub_perfil: (q("#ncSub")?.value ?? "").trim().replace(/\s+/g, "_") || null,
+      transicion: (q("#ncTrans")?.value ?? "").trim() || null,
     });
   };
-  overlay.querySelector('[data-nc="create"]').addEventListener("click", submit);
-  overlay.querySelector("#ncBehavior").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
-  setTimeout(() => overlay.querySelector("#ncBehavior").focus(), 30);
+  q('[data-nc="create"]')?.addEventListener("click", submit);
+  q("#ncBehavior")?.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
+  setTimeout(() => q("#ncBehavior")?.focus(), 30);
 }
 
 async function createCycle(title, extra = {}) {
@@ -700,8 +701,8 @@ function openPatternDetail(id) {
         <button type="button" class="primary-action" data-pd="reuse">Reusar patrón</button>
       </div>
     </div>`);
-  overlay.querySelector('[data-pd="close"]').addEventListener("click", overlay.close);
-  overlay.querySelector('[data-pd="reuse"]').addEventListener("click", () => { overlay.close(); reusePattern(p.id); });
+  overlay.querySelector('[data-pd="close"]')?.addEventListener("click", overlay.close);
+  overlay.querySelector('[data-pd="reuse"]')?.addEventListener("click", () => { overlay.close(); reusePattern(p.id); });
   const origin = overlay.querySelector("[data-pd-origin]");
   if (origin) origin.addEventListener("click", () => {
     overlay.close();
@@ -1386,8 +1387,8 @@ function openExportModal(missing) {
         <button type="button" class="primary-action" data-export="force">Exportar con supuestos</button>
       </div>
     </div>`);
-  overlay.querySelector('[data-export="complete"]').addEventListener("click", overlay.close);
-  overlay.querySelector('[data-export="force"]').addEventListener("click", () => exportBriefFlow(true));
+  overlay.querySelector('[data-export="complete"]')?.addEventListener("click", overlay.close);
+  overlay.querySelector('[data-export="force"]')?.addEventListener("click", () => exportBriefFlow(true));
 }
 
 function closeExportModal() {
