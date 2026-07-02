@@ -36,6 +36,8 @@ const homeView = document.querySelector("#homeView");
 const workspaceView = document.querySelector("#workspaceView");
 const libraryView = document.querySelector("#libraryView");
 const contextView = document.querySelector("#contextView");
+const analyticsView = document.querySelector("#analyticsView");
+const analyticsGrid = document.querySelector("#analyticsGrid");
 const contextDocuments = document.querySelector("#contextDocuments");
 const contextPendingBanner = document.querySelector("#contextPendingBanner");
 const newCycleButton = document.querySelector("#newCycleButton");
@@ -527,8 +529,37 @@ function setView(view) {
   workspaceView.hidden = view !== "workspace";
   libraryView.hidden = view !== "library";
   contextView.hidden = view !== "context";
+  if (analyticsView) analyticsView.hidden = view !== "analytics";
   if (view === "context" && !contextLoaded) loadContextDocuments();
   if (view === "library") renderPatternsList();
+  if (view === "analytics") loadAnalytics();
+}
+
+// --- Analytics (Fase 5) ---
+async function loadAnalytics() {
+  if (!analyticsGrid) return;
+  analyticsGrid.innerHTML = `<p class="loading-state">Cargando métricas…</p>`;
+  try {
+    const res = await apiFetch("/api/analytics", { headers: authHeaders() });
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    renderAnalytics(await res.json());
+  } catch {
+    analyticsGrid.innerHTML = `<p class="error-state">No se pudieron cargar las métricas. <button onclick="loadAnalytics()">Reintentar</button></p>`;
+  }
+}
+
+function renderAnalytics(a) {
+  const tile = (label, value, hint) =>
+    `<div class="stat-tile"><span class="stat-value">${escapeHtml(String(value))}</span><span class="stat-label">${escapeHtml(label)}</span>${hint ? `<span class="stat-hint">${escapeHtml(hint)}</span>` : ""}</div>`;
+  analyticsGrid.innerHTML = [
+    tile("Ciclos totales", a.cycles?.total ?? 0, `${a.cycles?.active ?? 0} en curso · ${a.cycles?.closed ?? 0} cerrados`),
+    tile("Rigor de gates", a.gates?.rigor != null ? `${a.gates.rigor}%` : "—", `${a.gates?.passed ?? 0} limpios · ${a.gates?.skippedWithRisk ?? 0} con riesgo`),
+    tile("Iteraciones", a.iterations ?? 0, "ciclos que re-diagnosticaron"),
+    tile("Patrones", a.patterns?.total ?? 0, `${a.patterns?.reused ?? 0} reutilizados`),
+    tile("Rechazos F0", a.behavior?.rejected ?? 0, "arranques por feature evitados"),
+    tile("Mensajes de chat", a.chat?.messages ?? 0, `${a.chat?.briefExtractions ?? 0} extracciones de brief`),
+    tile("Exports", a.exports?.attempted ?? 0, `${a.exports?.withAssumptions ?? 0} con supuestos`),
+  ].join("");
 }
 
 // --- Context ---
@@ -1105,6 +1136,12 @@ function exportBriefFlow(force = false) {
   if (missing.length && !force) { openExportModal(missing); return; }
   closeExportModal();
   downloadBrief();
+  // Analytics (Fase 5): fire-and-forget export event.
+  fetch("/api/analytics/event", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ type: "export_attempted", resource: cycle.id, meta: { missingCount: missing.length, forced: force } }),
+  }).catch(() => {});
   showToast("Brief exportado en Markdown.");
 }
 

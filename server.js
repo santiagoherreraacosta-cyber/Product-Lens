@@ -297,6 +297,8 @@ const routePermissions = {
   "PATCH /api/patterns": ["admin", "pm"],
   "POST /api/patterns/reuse": ["admin", "pm"],
   "GET /api/audit-events": ["admin"],
+  "GET /api/analytics": ["admin", "pm"],
+  "POST /api/analytics/event": ["admin", "pm", "viewer"],
 };
 
 function getRouteKey(method, pathname) {
@@ -788,6 +790,46 @@ async function handle(req, res) {
   if (req.method === "GET" && pathname === "/api/audit-events") {
     const limit = parseInt(url.searchParams.get("limit") || "100", 10);
     return json(res, auditEvents.slice(-limit).reverse());
+  }
+
+  // --- Analytics: aggregate the process metrics from the audit log (Fase 5) ---
+  if (req.method === "GET" && pathname === "/api/analytics") {
+    const count = (action) => auditEvents.filter((e) => e.action === action).length;
+    const all = Array.from(cycles.values());
+    const gatesPassed = count("gate_passed");
+    const gatesSkipped = count("gate_skipped_with_risk");
+    return json(res, {
+      cycles: {
+        total: all.length,
+        active: all.filter((c) => (c.estado ?? "activo") === "activo").length,
+        closed: all.filter((c) => c.estado === "cerrado").length,
+        iterated: all.filter((c) => c.iterated).length,
+      },
+      gates: {
+        passed: gatesPassed,
+        skippedWithRisk: gatesSkipped,
+        rigor: gatesPassed + gatesSkipped ? Math.round((gatesPassed / (gatesPassed + gatesSkipped)) * 100) : null,
+      },
+      patterns: { created: count("pattern_created"), reused: count("pattern_reused"), total: patterns.length },
+      behavior: { rejected: count("behavior_rejected") },
+      chat: { messages: count("chat_message"), briefExtractions: count("brief_extracted") },
+      exports: {
+        attempted: count("export_attempted"),
+        withAssumptions: auditEvents.filter((e) => e.action === "export_attempted" && e.meta?.missingCount > 0).length,
+      },
+      iterations: count("cycle_iterated"),
+      generatedAt: new Date().toISOString(),
+    });
+  }
+
+  // Client-emitted analytics event (e.g. export_attempted) → append to audit log.
+  if (req.method === "POST" && pathname === "/api/analytics/event") {
+    const body = await readBody(req);
+    const type = String(body.type ?? "").trim();
+    const ALLOWED = ["export_attempted", "pattern_reused"];
+    if (!ALLOWED.includes(type)) return json(res, { error: "Unsupported event type" }, 400);
+    logAudit(currentUser?.email || "anon", type, body.resource ?? "global", body.meta ?? {});
+    return json(res, { ok: true });
   }
 
   // --- Static file serving ---
