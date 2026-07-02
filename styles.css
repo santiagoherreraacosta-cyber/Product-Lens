@@ -773,3 +773,13 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .pd-row .section-label { display: block; margin-bottom: 3px; }
 .pd-row p { color: var(--text); font-size: 13.5px; margin: 0; }
 .pd-meta { align-items: center; color: var(--text3); display: flex; font-size: 12px; gap: 14px; justify-content: space-between; margin: 14px 0 4px; }
+
+/* --- New cycle modal (A5) --- */
+.newcycle-card { max-width: 500px; }
+.newcycle-card .eyebrow { margin-bottom: 6px; }
+.newcycle-card .pd-title { font-size: 18px; font-weight: 700; margin: 0 0 14px; letter-spacing: -.01em; }
+.nc-label { color: var(--text2); display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+.nc-textarea, .nc-input { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font: inherit; font-size: 14px; padding: 10px 12px; width: 100%; }
+.nc-textarea { resize: vertical; margin-bottom: 12px; }
+.nc-textarea:focus, .nc-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent); outline: none; }
+.nc-grid { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; margin-bottom: 12px; }

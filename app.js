@@ -232,13 +232,55 @@ async function loadCycles() {
   }
 }
 
-async function createCycle(title) {
+// A5 · Onboarding: styled "Nuevo ciclo" modal (replaces window.prompt).
+function openNewCycleModal() {
+  document.getElementById("newCycleModal")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "newCycleModal";
+  overlay.className = "export-modal";
+  overlay.innerHTML = `
+    <div class="export-modal-card newcycle-card">
+      <p class="eyebrow">Nuevo ciclo · F0 Sense</p>
+      <h2 class="pd-title">Empieza por un comportamiento, no por una feature.</h2>
+      <label class="nc-label" for="ncBehavior">¿Qué seller, haciendo qué, no está haciendo qué?</label>
+      <textarea id="ncBehavior" class="nc-textarea" rows="3" placeholder="El Rebuscador Digital no configura su 2º envío dentro de las 72h tras el primer pedido…"></textarea>
+      <div class="nc-grid">
+        <div><label class="nc-label" for="ncSub">Sub-perfil (opcional)</label><input id="ncSub" class="nc-input" placeholder="Rebuscador Digital" /></div>
+        <div><label class="nc-label" for="ncTrans">Transición (opcional)</label><input id="ncTrans" class="nc-input" placeholder="Setup_Aha" /></div>
+      </div>
+      <p id="ncError" class="login-error" hidden></p>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-nc="cancel">Cancelar</button>
+        <button type="button" class="primary-action" data-nc="create">Crear ciclo · abrir F0</button>
+      </div>
+    </div>`;
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-nc="cancel"]').addEventListener("click", close);
+  const submit = async () => {
+    const behavior = overlay.querySelector("#ncBehavior").value.trim();
+    if (!behavior) { const err = overlay.querySelector("#ncError"); err.textContent = "Describe el comportamiento para empezar."; err.hidden = false; return; }
+    close();
+    await createCycle(behavior, {
+      sub_perfil: overlay.querySelector("#ncSub").value.trim().replace(/\s+/g, "_") || null,
+      transicion: overlay.querySelector("#ncTrans").value.trim() || null,
+    });
+  };
+  overlay.querySelector('[data-nc="create"]').addEventListener("click", submit);
+  overlay.querySelector("#ncBehavior").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
+  workspace.appendChild(overlay);
+  setTimeout(() => overlay.querySelector("#ncBehavior").focus(), 30);
+}
+
+async function createCycle(title, extra = {}) {
   try {
     const res = await fetch("/api/cycles", {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
         title,
+        sub_perfil: extra.sub_perfil || null,
+        transicion: extra.transicion || null,
         phases: structuredClone(phaseSeed),
         activePhase: "F0",
         riskAccepted: false,
@@ -943,8 +985,8 @@ async function sendMessage() {
   chatInput.classList.remove("has-text");
 
   if (text.startsWith("/nuevo-ciclo")) {
-    const title = text.replace("/nuevo-ciclo", "").trim() || prompt("Nombre del ciclo:");
-    if (title) await createCycle(title);
+    const title = text.replace("/nuevo-ciclo", "").trim();
+    if (title) await createCycle(title); else openNewCycleModal();
     return;
   }
 
@@ -1548,15 +1590,8 @@ viewButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
 });
 
-newCycleButton?.addEventListener("click", () => {
-  const title = prompt("Nombre del ciclo (describe el comportamiento):");
-  if (title?.trim()) createCycle(title.trim());
-});
-
-newCycleEmpty?.addEventListener("click", () => {
-  const title = prompt("Nombre del ciclo (describe el comportamiento):");
-  if (title?.trim()) createCycle(title.trim());
-});
+newCycleButton?.addEventListener("click", openNewCycleModal);
+newCycleEmpty?.addEventListener("click", openNewCycleModal);
 
 // Home filters (A3)
 document.querySelector("#cyclesFilters")?.addEventListener("click", (e) => {
