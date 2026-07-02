@@ -610,13 +610,20 @@ const libFilters = { tipoCausa: "all", sub: "", level: "", search: "" };
 function populateLibraryFacets() {
   const subs = [...new Set(patterns.map((p) => p.sub_perfil).filter(Boolean))].sort();
   const levels = [...new Set(patterns.map((p) => p.transicion).filter(Boolean))].sort();
-  const fill = (sel, values, cur) => {
+  // Rebuild options fully (placeholder + values) — no querySelector, so no
+  // possible null dereference.
+  const fill = (sel, placeholder, values, cur, arrow) => {
     if (!sel) return;
-    const first = sel.querySelector("option").outerHTML;
-    sel.innerHTML = first + values.map((v) => `<option value="${escapeHtml(v)}" ${v === cur ? "selected" : ""}>${escapeHtml(v.replace(/_/g, v.includes("_") && sel.id === "patternLevel" ? "→" : " "))}</option>`).join("");
+    const opts = [`<option value="">${placeholder}</option>`].concat(
+      values.map((v) => {
+        const label = arrow ? v.replace(/_/g, "→") : v.replace(/_/g, " ");
+        return `<option value="${escapeHtml(v)}"${v === cur ? " selected" : ""}>${escapeHtml(label)}</option>`;
+      })
+    );
+    sel.innerHTML = opts.join("");
   };
-  fill(document.getElementById("patternSubProfile"), subs, libFilters.sub);
-  fill(document.getElementById("patternLevel"), levels, libFilters.level);
+  fill(document.getElementById("patternSubProfile"), "Sub-perfil", subs, libFilters.sub, false);
+  fill(document.getElementById("patternLevel"), "Nivel cognitivo", levels, libFilters.level, true);
 }
 function applyLibraryFilters() {
   const { tipoCausa, sub, level, search } = libFilters;
