@@ -410,6 +410,8 @@ function renderActiveCycle() {
   // Populate brief panel from real cycle data
   loadBriefFromCycle(cycle);
   renderPhaseGuide(cycle);
+  syncDeliverableToPhase(cycle, active);
+  renderExperimentStatus(cycle, active);
   // Grey out chat input for closed/discarded cycles
   chatInput?.classList.toggle("is-readonly", isClosed);
   if (messageInput) messageInput.placeholder = isClosed ? "Ciclo cerrado — solo lectura" : "";
@@ -654,6 +656,39 @@ async function saveContextDocument(section) {
 }
 
 // --- Brief / deliverable ---
+// A2 · Auto-switch the deliverable panel by phase (Brief for F0–F2, Experiment
+// Card for F3–F4). Only switches when the phase actually changes, so a manual
+// toggle isn't fought on every re-render.
+let _lastDeliverablePhase = null;
+function syncDeliverableToPhase(cycle, phase) {
+  if (!cycle) { _lastDeliverablePhase = null; return; }
+  if (phase === _lastDeliverablePhase) return;
+  _lastDeliverablePhase = phase;
+  const wants = (phase === "F3" || phase === "F4") ? "experiment" : "brief";
+  setDeliverable(wants);
+}
+
+// A2 · F4 "live": reflect the experiment run state in the panel footer.
+function renderExperimentStatus(cycle, phase) {
+  const el = document.getElementById("experimentStatus");
+  if (!el) return;
+  const exp = cycle?.experiment ?? {};
+  const val = (v) => v?.value ?? (typeof v === "string" ? v : null);
+  if (phase === "F4" && cycle?.estado === "activo") {
+    const sample = val(exp.tamano_muestra);
+    const duration = val(exp.duracion);
+    const bits = [sample ? `muestra ${escapeHtml(sample)}` : "", duration ? `${escapeHtml(duration)}` : ""].filter(Boolean).join(" · ");
+    el.classList.add("is-live");
+    el.innerHTML = `<span></span>Corriendo${bits ? ` · ${bits}` : ""}`;
+  } else if (phase === "F5" || cycle?.estado === "cerrado") {
+    el.classList.remove("is-live");
+    el.innerHTML = `<span></span>Concluido`;
+  } else {
+    el.classList.remove("is-live");
+    el.innerHTML = `<span></span>Borrador · listo para F3`;
+  }
+}
+
 function setDeliverable(next) {
   deliverable = next;
   briefBody.hidden = next !== "brief";
