@@ -762,3 +762,14 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .example-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .example-chips button { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; color: var(--text2); font-size: 12.5px; font-weight: 600; padding: 7px 12px; transition: border-color .14s, color .14s; }
 .example-chips button:hover { border-color: var(--brand-tint-br); color: var(--text); }
+
+/* --- Library A4: selects de faceta + detalle de patrón --- */
+.filter-select { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; color: var(--text2); font-size: 12px; font-weight: 600; padding: 7px 10px; cursor: pointer; }
+.filter-select:hover { color: var(--text); }
+.pattern-card[role="button"] { cursor: pointer; }
+.pattern-detail-card { max-width: 480px; }
+.pattern-detail-card .pd-title { font-size: 18px; font-weight: 700; margin: 8px 0 8px; letter-spacing: -.01em; }
+.pd-row { margin: 12px 0; }
+.pd-row .section-label { display: block; margin-bottom: 3px; }
+.pd-row p { color: var(--text); font-size: 13.5px; margin: 0; }
+.pd-meta { align-items: center; color: var(--text3); display: flex; font-size: 12px; gap: 14px; justify-content: space-between; margin: 14px 0 4px; }

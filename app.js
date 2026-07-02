@@ -550,23 +550,50 @@ async function loadPatterns() {
   }
 }
 
+const causeLabelEs = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : c === "P" ? "Prompt" : c;
+
+// A4 · unified library filtering state + facets
+const libFilters = { tipoCausa: "all", sub: "", level: "", search: "" };
+function populateLibraryFacets() {
+  const subs = [...new Set(patterns.map((p) => p.sub_perfil).filter(Boolean))].sort();
+  const levels = [...new Set(patterns.map((p) => p.transicion).filter(Boolean))].sort();
+  const fill = (sel, values, cur) => {
+    if (!sel) return;
+    const first = sel.querySelector("option").outerHTML;
+    sel.innerHTML = first + values.map((v) => `<option value="${escapeHtml(v)}" ${v === cur ? "selected" : ""}>${escapeHtml(v.replace(/_/g, v.includes("_") && sel.id === "patternLevel" ? "→" : " "))}</option>`).join("");
+  };
+  fill(document.getElementById("patternSubProfile"), subs, libFilters.sub);
+  fill(document.getElementById("patternLevel"), levels, libFilters.level);
+}
+function applyLibraryFilters() {
+  const { tipoCausa, sub, level, search } = libFilters;
+  let list = patterns;
+  if (tipoCausa === "patron" || tipoCausa === "anti_patron") list = list.filter((p) => p.tipo === tipoCausa);
+  else if (["m", "a", "p"].includes(tipoCausa)) list = list.filter((p) => (p.causa ?? "").toUpperCase() === tipoCausa.toUpperCase());
+  if (sub) list = list.filter((p) => p.sub_perfil === sub);
+  if (level) list = list.filter((p) => p.transicion === level);
+  if (search) list = list.filter((p) =>
+    [p.nombre, p.aprendizaje, p.sub_perfil, p.causa, p.transicion].some((x) => (x ?? "").toLowerCase().includes(search)));
+  renderPatternsList(list);
+}
+
 function renderPatternsList(list = patterns) {
+  populateLibraryFacets();
   if (!list.length) {
-    patternsList.innerHTML = `<p class="empty-library">Aquí aparecerán los aprendizajes del equipo. Para crear el primero, lleva un ciclo hasta F5 · Distill y ciérralo con un aprendizaje.</p>`;
+    patternsList.innerHTML = `<p class="empty-library">${patterns.length ? "Sin patrones para este filtro." : "Aquí aparecerán los aprendizajes del equipo. Para crear el primero, lleva un ciclo hasta F5 · Distill y ciérralo con un aprendizaje."}</p>`;
     return;
   }
-  const causeLabel = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : c === "P" ? "Prompt" : c;
   patternsList.innerHTML = list
     .map((p) => {
       const isAnti = p.tipo === "anti_patron";
       const since = p.createdAt ? new Date(p.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
       const chips = [
-        p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabel(p.causa))}</span>` : "",
+        p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabelEs(p.causa))}</span>` : "",
         p.sub_perfil ? `<span class="chip">${escapeHtml(p.sub_perfil.replace(/_/g, " "))}</span>` : "",
         p.transicion ? `<span class="chip">${escapeHtml(p.transicion.replace(/_/g, "→"))}</span>` : "",
       ].join("");
       return `
-        <article class="pattern-card">
+        <article class="pattern-card" data-pattern-open="${escapeHtml(p.id)}" role="button" tabindex="0">
           <span class="pattern-badge ${isAnti ? "anti_patron" : "patron"}">${isAnti ? "Anti-patrón" : "Patrón"}</span>
           <h2>${escapeHtml(p.nombre ?? p.name ?? "Sin nombre")}</h2>
           ${p.aprendizaje ? `<p class="pattern-learning">${escapeHtml(p.aprendizaje)}</p>` : ""}
@@ -582,8 +609,51 @@ function renderPatternsList(list = patterns) {
     .join("");
 
   patternsList.querySelectorAll(".reuse-btn").forEach((btn) => {
-    btn.addEventListener("click", () => reusePattern(btn.dataset.patternId));
+    btn.addEventListener("click", (e) => { e.stopPropagation(); reusePattern(btn.dataset.patternId); });
   });
+  patternsList.querySelectorAll("[data-pattern-open]").forEach((card) => {
+    card.addEventListener("click", () => openPatternDetail(card.dataset.patternOpen));
+  });
+}
+
+// A4 · pattern detail modal
+function openPatternDetail(id) {
+  const p = patterns.find((x) => x.id === id);
+  if (!p) return;
+  const isAnti = p.tipo === "anti_patron";
+  const row = (label, val) => val ? `<div class="pd-row"><span class="section-label">${escapeHtml(label)}</span><p>${escapeHtml(val)}</p></div>` : "";
+  const overlay = document.createElement("div");
+  overlay.id = "patternDetail";
+  overlay.className = "export-modal";
+  overlay.innerHTML = `
+    <div class="export-modal-card pattern-detail-card">
+      <span class="pattern-badge ${isAnti ? "anti_patron" : "patron"}">${isAnti ? "Anti-patrón" : "Patrón"}</span>
+      <h2 class="pd-title">${escapeHtml(p.nombre ?? "Sin nombre")}</h2>
+      <div class="chips">
+        ${p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabelEs(p.causa))}</span>` : ""}
+        ${p.sub_perfil ? `<span class="chip">${escapeHtml(p.sub_perfil.replace(/_/g, " "))}</span>` : ""}
+        ${p.transicion ? `<span class="chip">${escapeHtml(p.transicion.replace(/_/g, "→"))}</span>` : ""}
+      </div>
+      ${row("Qué aprendimos", p.aprendizaje)}
+      ${row("Delta de métrica", p.delta_metrica)}
+      ${row("Evidencia", p.evidencia)}
+      <div class="pd-meta"><span>${p.veces_reutilizado ?? 0}× reutilizado</span>${p.ciclo_origen_id ? `<button class="inline-link" type="button" data-pd-origin="${escapeHtml(p.ciclo_origen_id)}">Ver ciclo de origen →</button>` : ""}</div>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-pd="close">Cerrar</button>
+        <button type="button" class="primary-action" data-pd="reuse">Reusar patrón</button>
+      </div>
+    </div>`;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('[data-pd="close"]').addEventListener("click", () => overlay.remove());
+  overlay.querySelector('[data-pd="reuse"]').addEventListener("click", () => { overlay.remove(); reusePattern(p.id); });
+  const origin = overlay.querySelector("[data-pd-origin]");
+  if (origin) origin.addEventListener("click", () => {
+    overlay.remove();
+    const c = cycles.find((x) => x.id === p.ciclo_origen_id);
+    if (c) { currentCycleId = c.id; renderActiveCycle(); renderStepper(); loadMessages(c.id); setView("workspace"); }
+    else showToast("El ciclo de origen no está disponible.");
+  });
+  workspace.appendChild(overlay);
 }
 
 // --- View ---
@@ -1505,34 +1575,22 @@ document.querySelectorAll("[data-example-cycle]").forEach((btn) => {
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));
 experimentSwitch?.addEventListener("click", () => setDeliverable("experiment"));
 
-// Library filters (in-memory, no fetch)
-document.querySelector(".filter-row")?.addEventListener("click", (e) => {
+// Library filters — unified (A4). Scoped to #patternFilters (not the Home row).
+document.querySelector("#patternFilters")?.addEventListener("click", (e) => {
   const btn = e.target.closest(".filter");
   if (!btn) return;
-  document.querySelectorAll(".filter").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll("#patternFilters .filter").forEach((b) => b.classList.remove("active"));
   btn.classList.add("active");
-  const f = btn.dataset.filter ?? "all";
-  const filtered = f === "all" ? patterns
-    : (f === "patron" || f === "anti_patron") ? patterns.filter((p) => p.tipo === f)
-    : patterns.filter((p) => (p.causa ?? "").toUpperCase() === f.toUpperCase());
-  renderPatternsList(filtered);
+  libFilters.tipoCausa = btn.dataset.filter ?? "all";
+  applyLibraryFilters();
 });
+document.querySelector("#patternSubProfile")?.addEventListener("change", (e) => { libFilters.sub = e.target.value; applyLibraryFilters(); });
+document.querySelector("#patternLevel")?.addEventListener("change", (e) => { libFilters.level = e.target.value; applyLibraryFilters(); });
 
-// Pattern library search (in-memory, debounced 200ms)
 let _searchTimer = null;
 document.querySelector("#patternSearch")?.addEventListener("input", (e) => {
   clearTimeout(_searchTimer);
-  _searchTimer = setTimeout(() => {
-    const term = e.target.value.toLowerCase().trim();
-    if (!term) { renderPatternsList(patterns); return; }
-    renderPatternsList(patterns.filter((p) =>
-      (p.nombre ?? "").toLowerCase().includes(term) ||
-      (p.aprendizaje ?? "").toLowerCase().includes(term) ||
-      (p.sub_perfil ?? "").toLowerCase().includes(term) ||
-      (p.causa ?? "").toLowerCase().includes(term) ||
-      (p.transicion ?? "").toLowerCase().includes(term)
-    ));
-  }, 200);
+  _searchTimer = setTimeout(() => { libFilters.search = e.target.value.toLowerCase().trim(); applyLibraryFilters(); }, 200);
 });
 
 // Close cycle button

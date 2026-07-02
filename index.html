@@ -197,13 +197,15 @@
             <div><p class="eyebrow">Memoria del equipo</p><h1>Biblioteca de Patrones</h1><p>Patrones y anti-patrones aprendidos al cerrar ciclos en F5.</p></div>
             <input id="patternSearch" class="search-input" placeholder="Busca por segmento, causa o palabra…" />
           </header>
-          <div class="filter-row">
+          <div id="patternFilters" class="filter-row">
             <button class="filter active" data-filter="all">Todos</button>
             <button class="filter" data-filter="patron">Patrón</button>
             <button class="filter" data-filter="anti_patron">Anti-patrón</button>
             <button class="filter cause-filter motivation" data-filter="m"><span></span>Motivación</button>
             <button class="filter cause-filter ability" data-filter="a"><span></span>Ability</button>
             <button class="filter cause-filter prompt" data-filter="p"><span></span>Prompt</button>
+            <select id="patternSubProfile" class="filter-select" aria-label="Sub-perfil"><option value="">Sub-perfil</option></select>
+            <select id="patternLevel" class="filter-select" aria-label="Nivel cognitivo"><option value="">Nivel cognitivo</option></select>
           </div>
           <div id="patternsList" class="pattern-grid" aria-live="polite"></div>
         </section>
