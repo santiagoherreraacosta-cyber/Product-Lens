@@ -747,3 +747,7 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .pg-checklist li.is-met { color: var(--green); }
 .pg-check { align-items: center; border-radius: 999px; display: inline-flex; font-size: 11px; font-weight: 700; height: 16px; justify-content: center; width: 16px; background: var(--hover); color: var(--text3); }
 .pg-checklist li.is-met .pg-check { background: var(--green-soft); color: var(--green); }
+
+/* --- Experiment "live" (A2): pulso en el estado Corriendo --- */
+.running-status.is-live span { animation: livepulse 1.4s ease-in-out infinite; }
+@keyframes livepulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.35); } }
