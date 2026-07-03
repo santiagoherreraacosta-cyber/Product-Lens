@@ -1109,13 +1109,8 @@ async function sendMessage() {
   const thinkingEl = inner.querySelector(".ai-message:last-child .ai-body p");
 
   try {
-    const res = await apiFetch("/api/chat", {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({ message: text, cycleId: currentCycleId }),
-    });
-    const data = await res.json();
-    thinkingEl.classList.remove("thinking");
+    const data = await streamChat(text, thinkingEl);
+    thinkingEl.classList.remove("thinking", "is-streaming");
     const reply = data.reply ?? data.error ?? "Sin respuesta.";
     thinkingEl.innerHTML = renderMarkdown(reply);
     if (data.cycle) {
@@ -1139,10 +1134,62 @@ async function sendMessage() {
       }
     }
   } catch {
-    thinkingEl.classList.remove("thinking");
+    thinkingEl.classList.remove("thinking", "is-streaming");
     thinkingEl.textContent = "Error de conexión con el asistente.";
   }
   messageStream.scrollTop = messageStream.scrollHeight;
+}
+
+// B3 · consume /api/chat/stream (SSE): paints tokens progressively into
+// `liveEl` (typing effect) and resolves with the final payload {reply, cycle,
+// changed}. Falls back to the JSON endpoint if streaming isn't available.
+async function streamChat(text, liveEl) {
+  const payload = { method: "POST", headers: authHeaders(), body: JSON.stringify({ message: text, cycleId: currentCycleId }) };
+  const res = await apiFetch("/api/chat/stream", payload);
+  if (!res.ok || !res.body || !(res.headers.get("content-type") || "").includes("text/event-stream")) {
+    const fallback = await apiFetch("/api/chat", payload);
+    return fallback.json();
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let reply = "";
+  let finalData = null;
+  let streamError = null;
+  const handleEvent = (raw) => {
+    let event = "message";
+    let dataLine = "";
+    for (const line of raw.split("\n")) {
+      if (line.startsWith("event: ")) event = line.slice(7).trim();
+      else if (line.startsWith("data: ")) dataLine += line.slice(6);
+    }
+    if (!dataLine) return;
+    let data;
+    try { data = JSON.parse(dataLine); } catch { return; }
+    if (event === "token" && data.t) {
+      if (!reply) liveEl.classList.remove("thinking");
+      liveEl.classList.add("is-streaming");
+      reply += data.t;
+      liveEl.innerHTML = renderMarkdown(reply);
+      messageStream.scrollTop = messageStream.scrollHeight;
+    } else if (event === "done") {
+      finalData = data;
+    } else if (event === "error") {
+      streamError = data;
+    }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buf.indexOf("\n\n")) >= 0) {
+      handleEvent(buf.slice(0, sep));
+      buf = buf.slice(sep + 2);
+    }
+  }
+  if (streamError && !finalData) return { reply: reply || null, error: streamError.detail || streamError.error };
+  return finalData ?? { reply };
 }
 
 function addAiNote(content) {

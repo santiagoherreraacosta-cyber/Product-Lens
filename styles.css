@@ -680,6 +680,10 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 }
 /* Thinking indicator */
 .thinking { color: var(--text3, #9CA3AF); font-style: italic; }
+/* B3 · streaming typing caret on the live assistant message */
+.is-streaming::after { animation: caret-blink 0.9s steps(1) infinite; background: var(--brand, #FF6B00); border-radius: 1px; content: ""; display: inline-block; height: 1em; margin-left: 3px; vertical-align: text-bottom; width: 2px; }
+@keyframes caret-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .is-streaming::after { animation: none; } }
 /* Active cycle card in grid */
 .dashboard-card.is-active { border-color: #FF6B00; box-shadow: 0 0 0 2px rgba(255,107,0,.15); }
 /* Muted text */
