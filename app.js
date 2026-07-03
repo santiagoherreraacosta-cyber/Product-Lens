@@ -1170,7 +1170,9 @@ async function streamChat(text, liveEl) {
       if (!reply) liveEl.classList.remove("thinking");
       liveEl.classList.add("is-streaming");
       reply += data.t;
-      liveEl.innerHTML = renderMarkdown(reply);
+      // Plain text while streaming (no HTML sink on network data); the final
+      // reply is Markdown-rendered once the stream completes.
+      liveEl.textContent = reply;
       messageStream.scrollTop = messageStream.scrollHeight;
     } else if (event === "done") {
       finalData = data;

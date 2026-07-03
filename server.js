@@ -823,9 +823,10 @@ async function handle(req, res) {
     let reply = "";
     try {
       if (!ANTHROPIC_API_KEY) {
-        // No key: stream the fallback notice word-by-word so the UI path is
-        // identical with and without a configured model.
-        reply = "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] " + message;
+        // No key: stream a static fallback notice word-by-word so the UI path
+        // is identical with and without a configured model. (Static on purpose
+        // — no reflection of user input into the response.)
+        reply = "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] Recibí tu mensaje y quedó guardado en el ciclo.";
         for (const word of reply.split(/(?<=\s)/)) {
           send("token", { t: word });
           await new Promise((r) => setTimeout(r, 15));
