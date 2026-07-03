@@ -857,9 +857,12 @@ async function handle(req, res) {
         if (!reply) reply = "Sin respuesta del modelo.";
       }
 
-      const { updatedCycle, extractionChanged } = await persistChatTurn({ cycle, cycleId, message, reply, apiKey: ANTHROPIC_API_KEY, actor: currentUser?.email });
+      const { extractionChanged } = await persistChatTurn({ cycle, cycleId, message, reply, apiKey: ANTHROPIC_API_KEY, actor: currentUser?.email });
       logAudit(currentUser?.email || "anon", "chat_message", cycleId || "global");
-      send("done", { reply, cycle: updatedCycle, changed: extractionChanged });
+      // Deliberately minimal payload: no user/LLM content is reflected into
+      // the SSE response. The client already accumulated the reply from the
+      // token events and re-fetches the updated cycle over the JSON API.
+      send("done", { ok: true, changed: extractionChanged });
     } catch (error) {
       console.error("Chat stream error:", error);
       send("error", { error: "Stream interrumpido", detail: error.message });

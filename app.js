@@ -1113,7 +1113,11 @@ async function sendMessage() {
     thinkingEl.classList.remove("thinking", "is-streaming");
     const reply = data.reply ?? data.error ?? "Sin respuesta.";
     thinkingEl.innerHTML = renderMarkdown(reply);
-    if (data.cycle) {
+    if (data.streamed) {
+      // Streaming path: the SSE done event is content-free; re-fetch the
+      // authoritative cycle (persisted messages + auto-extracted brief).
+      if (currentCycleId) await refreshCycleAfterChat(data.changed);
+    } else if (data.cycle) {
       // Server is authoritative: it appended messages and auto-extracted brief
       // fields from the conversation (Fase 1). Adopt it and refresh the brief.
       cycles = cycles.map((c) => (c.id === data.cycle.id ? data.cycle : c));
@@ -1138,6 +1142,19 @@ async function sendMessage() {
     thinkingEl.textContent = "Error de conexión con el asistente.";
   }
   messageStream.scrollTop = messageStream.scrollHeight;
+}
+
+// After a streamed chat turn, pull the updated cycle from the JSON API and
+// refresh the brief panel (the SSE done event carries no cycle content).
+async function refreshCycleAfterChat(changed) {
+  try {
+    const res = await apiFetch("/api/cycles", { headers: authHeaders() });
+    if (!res.ok) return;
+    cycles = await res.json();
+    renderActiveCycle();
+    renderBriefState();
+    flashBriefFields(changed ?? []);
+  } catch { /* keep local state; next load will sync */ }
 }
 
 // B3 · consume /api/chat/stream (SSE): paints tokens progressively into
@@ -1191,7 +1208,7 @@ async function streamChat(text, liveEl) {
     }
   }
   if (streamError && !finalData) return { reply: reply || null, error: streamError.detail || streamError.error };
-  return finalData ?? { reply };
+  return { reply, changed: finalData?.changed ?? [], streamed: true };
 }
 
 function addAiNote(content) {
