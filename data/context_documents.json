@@ -148,6 +148,126 @@
           "reason": "Migración inicial desde 00_Orquestador.md sección 6."
         }
       ]
+    },
+    {
+      "id": "perfiles",
+      "title": "6.7 Perfiles de seller",
+      "content": "Sub-perfiles de seller que usa el equipo para diagnosticar (B=MAP):\n\n- **Rebuscador Digital:** busca ingreso extra, alta motivación inicial, baja tolerancia a fricción operativa. `[CONFIRMAR: tamaño del segmento]`\n- **Seller Explorador:** prueba la plataforma sin compromiso; necesita un Aha temprano para convertir intención en hábito. `[CONFIRMAR: tamaño del segmento]`\n- **Operador en Escala:** ya vende en otros canales; evalúa a Dropi por eficiencia. Sensible a confiabilidad y tiempos. `[CONFIRMAR: tamaño del segmento]`\n\nRegla: todo ciclo debe nombrar el sub-perfil objetivo; si no está claro, es un gate de F0.",
+      "sortOrder": 8,
+      "pendingCount": 0,
+      "updatedAt": "2026-07-03T14:29:05.000Z",
+      "updatedBy": "seed",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.7 Perfiles de seller",
+          "content": "Sub-perfiles de seller que usa el equipo para diagnosticar (B=MAP):\n\n- **Rebuscador Digital:** busca ingreso extra, alta motivación inicial, baja tolerancia a fricción operativa. `[CONFIRMAR: tamaño del segmento]`\n- **Seller Explorador:** prueba la plataforma sin compromiso; necesita un Aha temprano para convertir intención en hábito. `[CONFIRMAR: tamaño del segmento]`\n- **Operador en Escala:** ya vende en otros canales; evalúa a Dropi por eficiencia. Sensible a confiabilidad y tiempos. `[CONFIRMAR: tamaño del segmento]`\n\nRegla: todo ciclo debe nombrar el sub-perfil objetivo; si no está claro, es un gate de F0.",
+          "pendingCount": 0,
+          "updatedAt": "2026-07-03T14:29:05.000Z",
+          "updatedBy": "seed",
+          "reason": "Seed inicial B1 (contexto estructurado)."
+        }
+      ]
+    },
+    {
+      "id": "tabla-evolucion-cognitiva",
+      "title": "6.8 Evolución cognitiva (Setup → Maestría)",
+      "content": "Tabla operativa: define cada nivel, sus señales, la intervención típica y la métrica que lo mide. Las celdas con `[CONFIRMAR]` son supuestos hasta que Producto las confirme.",
+      "sortOrder": 9,
+      "pendingCount": 0,
+      "updatedAt": "2026-07-03T14:29:05.000Z",
+      "updatedBy": "seed",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.8 Evolución cognitiva (Setup → Maestría)",
+          "content": "Tabla operativa: define cada nivel, sus señales, la intervención típica y la métrica que lo mide. Las celdas con `[CONFIRMAR]` son supuestos hasta que Producto las confirme.",
+          "table": {
+            "columns": [
+              "Nivel",
+              "Definición",
+              "Señales",
+              "Intervención típica",
+              "Métrica"
+            ],
+            "rows": [
+              [
+                "Setup",
+                "El seller completa la configuración mínima para poder operar (registro, tienda, catálogo).",
+                "Registro completado, tienda conectada, primer producto importado.",
+                "Reducir pasos y decisión; próximo paso explícito.",
+                "[CONFIRMAR: % setup completado / tiempo a setup]"
+              ],
+              [
+                "Aha",
+                "El seller experimenta el valor por primera vez (primera orden útil).",
+                "Primera orden creada y despachada sin soporte.",
+                "Acompañamiento en el momento crítico; eliminar incertidumbre de la primera orden.",
+                "[CONFIRMAR: tasa de primera orden / TTV]"
+              ],
+              [
+                "Hábito",
+                "El seller repite el comportamiento de valor de forma recurrente (2ª orden y siguientes).",
+                "2º envío dentro de las 72h; frecuencia semanal de órdenes.",
+                "Prompts de recurrencia; reducir fricción del flujo repetido.",
+                "[CONFIRMAR: retención de órdenes semana 2-4]"
+              ],
+              [
+                "Maestría",
+                "El seller optimiza su operación y expande (multi-producto, escala, márgenes).",
+                "Uso de features avanzadas; crecimiento de volumen sostenido.",
+                "Herramientas de escala; visibilidad de márgenes y desempeño.",
+                "[CONFIRMAR: % sellers en escala / LTV]"
+              ]
+            ]
+          },
+          "pendingCount": 0,
+          "updatedAt": "2026-07-03T14:29:05.000Z",
+          "updatedBy": "seed",
+          "reason": "Seed inicial B1 (contexto estructurado)."
+        }
+      ],
+      "table": {
+        "columns": [
+          "Nivel",
+          "Definición",
+          "Señales",
+          "Intervención típica",
+          "Métrica"
+        ],
+        "rows": [
+          [
+            "Setup",
+            "El seller completa la configuración mínima para poder operar (registro, tienda, catálogo).",
+            "Registro completado, tienda conectada, primer producto importado.",
+            "Reducir pasos y decisión; próximo paso explícito.",
+            "[CONFIRMAR: % setup completado / tiempo a setup]"
+          ],
+          [
+            "Aha",
+            "El seller experimenta el valor por primera vez (primera orden útil).",
+            "Primera orden creada y despachada sin soporte.",
+            "Acompañamiento en el momento crítico; eliminar incertidumbre de la primera orden.",
+            "[CONFIRMAR: tasa de primera orden / TTV]"
+          ],
+          [
+            "Hábito",
+            "El seller repite el comportamiento de valor de forma recurrente (2ª orden y siguientes).",
+            "2º envío dentro de las 72h; frecuencia semanal de órdenes.",
+            "Prompts de recurrencia; reducir fricción del flujo repetido.",
+            "[CONFIRMAR: retención de órdenes semana 2-4]"
+          ],
+          [
+            "Maestría",
+            "El seller optimiza su operación y expande (multi-producto, escala, márgenes).",
+            "Uso de features avanzadas; crecimiento de volumen sostenido.",
+            "Herramientas de escala; visibilidad de márgenes y desempeño.",
+            "[CONFIRMAR: % sellers en escala / LTV]"
+          ]
+        ]
+      }
     }
   ]
 }

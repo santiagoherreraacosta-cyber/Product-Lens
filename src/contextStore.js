@@ -27,14 +27,36 @@ export async function updateContextDocument(id, patch, actor = 'admin') {
     throw error;
   }
   const current = data.documents[index];
-  const next = withPendingCount({ ...current, title: patch.title ?? current.title, content: patch.content ?? current.content, updatedAt: new Date().toISOString(), updatedBy: actor, version: current.version + 1 });
-  next.versions = [...(current.versions ?? []), { version: next.version, title: next.title, content: next.content, pendingCount: next.pendingCount, updatedAt: next.updatedAt, updatedBy: actor, reason: patch.reason ?? 'Edición manual de contexto.' }];
+  const next = withPendingCount({
+    ...current,
+    title: patch.title ?? current.title,
+    content: patch.content ?? current.content,
+    table: normalizeTable(patch.table) ?? current.table,
+    updatedAt: new Date().toISOString(),
+    updatedBy: actor,
+    version: current.version + 1,
+  });
+  next.versions = [...(current.versions ?? []), { version: next.version, title: next.title, content: next.content, table: next.table, pendingCount: next.pendingCount, updatedAt: next.updatedAt, updatedBy: actor, reason: patch.reason ?? 'Edición manual de contexto.' }];
   data.documents[index] = next;
   await fs.writeFile(DATA_PATH, JSON.stringify(data, null, 2) + '\n');
   await fs.appendFile(AUDIT_PATH, JSON.stringify({ type: 'context_document.updated', id, actor, version: next.version, pendingCount: next.pendingCount, at: next.updatedAt, reason: patch.reason ?? null }) + '\n');
   return next;
 }
 
+// B1 · table documents ({ columns: string[], rows: string[][] }). Returns the
+// sanitized table or null when the patch has no usable table.
+export function normalizeTable(table) {
+  if (!table || typeof table !== 'object') return null;
+  const columns = Array.isArray(table.columns) ? table.columns.map((c) => String(c ?? '')) : null;
+  const rows = Array.isArray(table.rows)
+    ? table.rows.filter(Array.isArray).map((row) => row.map((cell) => String(cell ?? '')))
+    : null;
+  if (!columns?.length || !rows?.length) return null;
+  return { columns, rows: rows.map((row) => row.slice(0, columns.length)) };
+}
+
+// [CONFIRMAR] pendings count across title + content + table cells.
 export function withPendingCount(doc) {
-  return { ...doc, pendingCount: `${doc.title}\n${doc.content}`.match(CONFIRM_RE)?.length ?? 0 };
+  const tableText = doc.table ? [...(doc.table.columns ?? []), ...(doc.table.rows ?? []).flat()].join('\n') : '';
+  return { ...doc, pendingCount: `${doc.title}\n${doc.content}\n${tableText}`.match(CONFIRM_RE)?.length ?? 0 };
 }
