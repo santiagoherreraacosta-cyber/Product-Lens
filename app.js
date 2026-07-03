@@ -1087,33 +1087,12 @@ async function handleSlashCommand(text) {
   return false;
 }
 
-// Applies the chat result to local state after the reply is painted.
-async function applyChatResult(data, text, reply) {
-  if (data.streamed) {
-    // Streaming path: the SSE done event is content-free; re-fetch the
-    // authoritative cycle (persisted messages + auto-extracted brief).
-    if (currentCycleId) await refreshCycleAfterChat(data.changed);
-    return;
-  }
-  if (data.cycle) {
-    // Server is authoritative: it appended messages and auto-extracted brief
-    // fields from the conversation (Fase 1). Adopt it and refresh the brief.
-    cycles = cycles.map((c) => (c.id === data.cycle.id ? data.cycle : c));
-    renderActiveCycle();
-    renderBriefState();
-    flashBriefFields(data.changed);
-    return;
-  }
-  // Fallback: keep local cycle.messages in sync
-  const activeCycle = getCurrentCycle();
-  if (!activeCycle) return;
-  const now = new Date().toISOString();
-  activeCycle.messages = [
-    ...(activeCycle.messages ?? []),
-    { id: `u-${Date.now()}`, role: "user", content: text, created_at: now },
-    { id: `a-${Date.now()}`, role: "assistant", content: reply, created_at: now },
-  ];
-  cycles = cycles.map((c) => (c.id === currentCycleId ? activeCycle : c));
+// Applies the chat result to local state after the reply is painted. Both the
+// streaming and JSON endpoints return a content-free payload (only the model
+// reply + changed brief fields), so we re-fetch the authoritative cycle
+// (persisted messages + auto-extracted brief) over GET /api/cycles.
+async function applyChatResult(data) {
+  if (currentCycleId) await refreshCycleAfterChat(data.changed);
 }
 
 async function sendMessage() {
@@ -1146,7 +1125,7 @@ async function sendMessage() {
     thinkingEl.classList.remove("thinking", "is-streaming");
     const reply = data.reply ?? data.error ?? "Sin respuesta.";
     thinkingEl.innerHTML = renderMarkdown(reply);
-    await applyChatResult(data, text, reply);
+    await applyChatResult(data);
   } catch {
     thinkingEl.classList.remove("thinking", "is-streaming");
     thinkingEl.textContent = "Error de conexión con el asistente.";

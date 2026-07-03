@@ -781,7 +781,8 @@ async function handle(req, res) {
 
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
     if (!ANTHROPIC_API_KEY) {
-      return json(res, { reply: "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] " + message });
+      // Static notice — never echo the request body back into the response.
+      return json(res, { reply: "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] Recibí tu mensaje y quedó guardado en el ciclo." });
     }
 
     const cycle = cycleId ? cycles.get(cycleId) : null;
@@ -807,9 +808,12 @@ async function handle(req, res) {
     const data = await llmRes.json();
     const reply = data.content?.[0]?.text ?? "Sin respuesta del modelo.";
 
-    const { updatedCycle, extractionChanged } = await persistChatTurn({ cycle, cycleId, message, reply, apiKey: ANTHROPIC_API_KEY, actor: currentUser?.email });
+    const { extractionChanged } = await persistChatTurn({ cycle, cycleId, message, reply, apiKey: ANTHROPIC_API_KEY, actor: currentUser?.email });
     logAudit(currentUser?.email || "anon", "chat_message", cycleId || "global");
-    return json(res, { reply, cycle: updatedCycle, changed: extractionChanged });
+    // Return only the model reply + which brief fields changed. The persisted
+    // cycle (which embeds the user message) is re-fetched by the client over
+    // GET /api/cycles, so no request input is reflected into this response.
+    return json(res, { reply, changed: extractionChanged });
   }
 
   // --- Chat streaming (B3, spec §5.8): SSE with token events + final done ---
