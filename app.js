@@ -131,8 +131,10 @@ function showApp() {
   workspace.hidden = false;
   const overlay = document.getElementById("appLoadingOverlay");
   if (overlay) overlay.hidden = false;
-  const roleLabel = currentUser?.role === "admin" ? " · admin" : currentUser?.role === "pm" ? " · pm" : "";
+  const roleLabel = currentUser?.role ? ` · ${currentUser.role}` : "";
   userEmailEl.textContent = (currentUser?.email ?? "") + roleLabel;
+  // B7 · viewer is read-only: hide write actions via a scope class (see CSS).
+  workspace.classList.toggle("role-viewer", currentUser?.role === "viewer");
 }
 
 async function checkAuth() {
@@ -191,6 +193,13 @@ function logout() {
   patterns = [];
   contextLoaded = false;
   showLogin();
+}
+
+// B7 · viewer is read-only. Write actions no-op with a hint.
+function isViewer() { return currentUser?.role === "viewer"; }
+function blockIfViewer() {
+  if (isViewer()) { showToast("Tu rol es de solo lectura (viewer)."); return true; }
+  return false;
 }
 
 // --- Init ---
@@ -294,6 +303,7 @@ function openNewCycleModal() {
 }
 
 async function createCycle(title, extra = {}) {
+  if (blockIfViewer()) return;
   try {
     const res = await fetch("/api/cycles", {
       method: "POST",
@@ -519,6 +529,7 @@ function renderActiveCycle() {
 }
 
 async function reusePattern(patternId) {
+  if (blockIfViewer()) return;
   try {
     const res = await apiFetch(`/api/patterns/${patternId}/reuse`, { method: "POST", headers: authHeaders() });
     if (!res.ok) return;
@@ -540,6 +551,7 @@ async function reusePattern(patternId) {
 }
 
 async function closeCycle() {
+  if (blockIfViewer()) return;
   const closureDecision = document.getElementById("closureDecision");
   const closureLearning = document.getElementById("closureLearning");
   const closureDelta = document.getElementById("closureDelta");
@@ -1014,6 +1026,7 @@ function renderMessages(msgs) {
 
 // --- Chat ---
 async function sendMessage() {
+  if (blockIfViewer()) return;
   const text = messageInput.value.trim();
   if (!text) return;
   // Closed/discarded cycles are read-only
@@ -1106,6 +1119,7 @@ function addAiNote(content) {
 // blocked GateCard; withRisk=true → the server records the risk and advances.
 async function advancePhase(withRisk = false) {
   if (!currentCycleId) return;
+  if (blockIfViewer()) return;
   try {
     const res = await apiFetch(`/api/cycles/${currentCycleId}/advance`, {
       method: "POST",

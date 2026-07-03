@@ -337,6 +337,14 @@ button { cursor: pointer; }
 @keyframes sk-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 @media (prefers-reduced-motion: reduce) { .sk-line { animation: none; } }
 
+/* B7 · viewer role is read-only — hide write-action controls. */
+.workspace.role-viewer #newCycleButton,
+.workspace.role-viewer #newCycleEmpty,
+.workspace.role-viewer #advancePhaseBtn,
+.workspace.role-viewer #closeCycleButton,
+.workspace.role-viewer #chatForm,
+.workspace.role-viewer .reuse-btn { display: none; }
+
 .conversation-shell { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .conversation-header {
   align-items: center;
