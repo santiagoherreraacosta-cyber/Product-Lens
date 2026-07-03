@@ -1067,6 +1067,55 @@ function renderMessages(msgs) {
 }
 
 // --- Chat ---
+// Slash commands handled locally (no LLM round-trip). Returns true if handled.
+async function handleSlashCommand(text) {
+  if (text.startsWith("/nuevo-ciclo")) {
+    const title = text.replace("/nuevo-ciclo", "").trim();
+    if (title) await createCycle(title); else openNewCycleModal();
+    return true;
+  }
+  if (text.startsWith("/brief")) {
+    downloadBrief();
+    addAiNote("Brief exportado en Markdown. También queda vivo en el panel derecho.");
+    return true;
+  }
+  if (text.startsWith("/experimento")) {
+    setDeliverable("experiment");
+    addAiNote("Cambiando a Experiment Card. Completa los campos de hipótesis, métrica y criterio de stop.");
+    return true;
+  }
+  return false;
+}
+
+// Applies the chat result to local state after the reply is painted.
+async function applyChatResult(data, text, reply) {
+  if (data.streamed) {
+    // Streaming path: the SSE done event is content-free; re-fetch the
+    // authoritative cycle (persisted messages + auto-extracted brief).
+    if (currentCycleId) await refreshCycleAfterChat(data.changed);
+    return;
+  }
+  if (data.cycle) {
+    // Server is authoritative: it appended messages and auto-extracted brief
+    // fields from the conversation (Fase 1). Adopt it and refresh the brief.
+    cycles = cycles.map((c) => (c.id === data.cycle.id ? data.cycle : c));
+    renderActiveCycle();
+    renderBriefState();
+    flashBriefFields(data.changed);
+    return;
+  }
+  // Fallback: keep local cycle.messages in sync
+  const activeCycle = getCurrentCycle();
+  if (!activeCycle) return;
+  const now = new Date().toISOString();
+  activeCycle.messages = [
+    ...(activeCycle.messages ?? []),
+    { id: `u-${Date.now()}`, role: "user", content: text, created_at: now },
+    { id: `a-${Date.now()}`, role: "assistant", content: reply, created_at: now },
+  ];
+  cycles = cycles.map((c) => (c.id === currentCycleId ? activeCycle : c));
+}
+
 async function sendMessage() {
   if (blockIfViewer()) return;
   const text = messageInput.value.trim();
@@ -1082,23 +1131,7 @@ async function sendMessage() {
   messageInput.value = "";
   chatInput.classList.remove("has-text");
 
-  if (text.startsWith("/nuevo-ciclo")) {
-    const title = text.replace("/nuevo-ciclo", "").trim();
-    if (title) await createCycle(title); else openNewCycleModal();
-    return;
-  }
-
-  if (text.startsWith("/brief")) {
-    downloadBrief();
-    addAiNote("Brief exportado en Markdown. También queda vivo en el panel derecho.");
-    return;
-  }
-
-  if (text.startsWith("/experimento")) {
-    setDeliverable("experiment");
-    addAiNote("Cambiando a Experiment Card. Completa los campos de hipótesis, métrica y criterio de stop.");
-    return;
-  }
+  if (await handleSlashCommand(text)) return;
 
   // Real LLM call
   inner.insertAdjacentHTML(
@@ -1113,30 +1146,7 @@ async function sendMessage() {
     thinkingEl.classList.remove("thinking", "is-streaming");
     const reply = data.reply ?? data.error ?? "Sin respuesta.";
     thinkingEl.innerHTML = renderMarkdown(reply);
-    if (data.streamed) {
-      // Streaming path: the SSE done event is content-free; re-fetch the
-      // authoritative cycle (persisted messages + auto-extracted brief).
-      if (currentCycleId) await refreshCycleAfterChat(data.changed);
-    } else if (data.cycle) {
-      // Server is authoritative: it appended messages and auto-extracted brief
-      // fields from the conversation (Fase 1). Adopt it and refresh the brief.
-      cycles = cycles.map((c) => (c.id === data.cycle.id ? data.cycle : c));
-      renderActiveCycle();
-      renderBriefState();
-      flashBriefFields(data.changed);
-    } else {
-      // Fallback: keep local cycle.messages in sync
-      const activeCycle = getCurrentCycle();
-      if (activeCycle) {
-        const now = new Date().toISOString();
-        activeCycle.messages = [
-          ...(activeCycle.messages ?? []),
-          { id: `u-${Date.now()}`, role: "user", content: text, created_at: now },
-          { id: `a-${Date.now()}`, role: "assistant", content: reply, created_at: now },
-        ];
-        cycles = cycles.map((c) => (c.id === currentCycleId ? activeCycle : c));
-      }
-    }
+    await applyChatResult(data, text, reply);
   } catch {
     thinkingEl.classList.remove("thinking", "is-streaming");
     thinkingEl.textContent = "Error de conexión con el asistente.";

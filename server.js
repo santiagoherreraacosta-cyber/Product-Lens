@@ -199,6 +199,19 @@ function buildChatContext(cycle) {
   return { history, systemWithCtx };
 }
 
+// Extracts the text delta from one SSE data line, or null when the line is
+// not a text_delta event (malformed lines are ignored).
+function extractTextDelta(line) {
+  if (!line.startsWith("data: ")) return null;
+  try {
+    const evt = JSON.parse(line.slice(6));
+    const isTextDelta = evt.type === "content_block_delta" && evt.delta?.type === "text_delta";
+    return isTextDelta ? (evt.delta.text || null) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Parses an Anthropic streaming (SSE) response body and yields text deltas.
 async function* anthropicTextDeltas(body) {
   const decoder = new TextDecoder();
@@ -210,13 +223,8 @@ async function* anthropicTextDeltas(body) {
       const rawEvent = buf.slice(0, sep);
       buf = buf.slice(sep + 2);
       for (const line of rawEvent.split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const evt = JSON.parse(line.slice(6));
-          if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
-            yield evt.delta.text;
-          }
-        } catch { /* ignore malformed SSE lines */ }
+        const text = extractTextDelta(line);
+        if (text) yield text;
       }
     }
   }
