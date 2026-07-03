@@ -789,32 +789,74 @@ async function loadContextDocuments() {
   }
 }
 
+// B1 · editable table renderer for `kind: table` docs (cognitive evolution).
+function contextTableHtml(doc) {
+  const canEdit = currentUser?.role === "admin";
+  const head = doc.table.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("");
+  const body = doc.table.rows.map((row, ri) => `
+    <tr>${row.map((cell, ci) => {
+      const pending = /\[CONFIRMAR[^\]]*\]/.test(cell) ? " is-pending" : "";
+      if (ci === 0) return `<th scope="row" class="ct-level${pending}">${escapeHtml(cell)}</th>`;
+      return `<td class="ct-cell${pending}"><div class="ct-editable" ${canEdit ? 'contenteditable="plaintext-only"' : ""} data-row="${ri}" data-col="${ci}">${escapeHtml(cell)}</div></td>`;
+    }).join("")}</tr>`).join("");
+  return `<div class="ct-scroll"><table class="cognitive-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
 function renderContextDocuments(data) {
-  contextPendingBanner.textContent = `${data.pendingCount} campos pendientes [CONFIRMAR] — la IA los tratará como supuestos.`;
+  // Global pending counter with per-doc anchors (click → jump to the doc).
+  const pendingDocs = data.documents.filter((doc) => doc.pendingCount > 0);
+  contextPendingBanner.innerHTML = `
+    <span>${data.pendingCount} campos pendientes [CONFIRMAR] — la IA los tratará como supuestos.</span>
+    ${pendingDocs.map((doc) => `<button type="button" class="pending-chip" data-goto-doc="${escapeHtml(doc.id)}">${escapeHtml(doc.title)} · ${doc.pendingCount}</button>`).join("")}`;
+  contextPendingBanner.querySelectorAll("[data-goto-doc]").forEach((chip) => {
+    chip.addEventListener("click", () => document.getElementById(`doc-${chip.dataset.gotoDoc}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  });
+
+  // TOC with one anchor per section.
+  const toc = document.getElementById("contextToc");
+  if (toc) {
+    toc.innerHTML = data.documents
+      .map((doc) => `<a href="#doc-${escapeHtml(doc.id)}">${escapeHtml(doc.title)}${doc.pendingCount ? ` <span class="toc-pending">${doc.pendingCount}</span>` : ""}</a>`)
+      .join("");
+  }
+
   contextDocuments.innerHTML = data.documents
     .map((doc) => `
-      <section class="context-document" data-context-id="${escapeHtml(doc.id)}">
+      <section class="context-document" id="doc-${escapeHtml(doc.id)}" data-context-id="${escapeHtml(doc.id)}">
         <header><h2>${escapeHtml(doc.title)}</h2><span>v${escapeHtml(String(doc.version))} · ${escapeHtml(String(doc.pendingCount))} pendientes</span></header>
-        <textarea aria-label="Editar ${escapeHtml(doc.title)}">${escapeHtml(doc.content)}</textarea>
+        ${doc.table
+          ? `<p class="ct-intro">${escapeHtml(doc.content)}</p>${contextTableHtml(doc)}`
+          : `<textarea aria-label="Editar ${escapeHtml(doc.title)}">${escapeHtml(doc.content)}</textarea>`}
         <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${escapeHtml(new Date(doc.updatedAt).toLocaleString("es-CO"))}</span><button class="secondary-action" type="button" data-save-context ${currentUser?.role !== "admin" ? 'disabled title="Solo admins pueden guardar"' : ""}>Guardar${currentUser?.role === "admin" ? " ✓" : " (solo admins)"}</button></footer>
       </section>`)
     .join("");
   contextDocuments.querySelectorAll("[data-save-context]").forEach((button) => {
-    button.addEventListener("click", () => saveContextDocument(button.closest("[data-context-id]")));
+    button.addEventListener("click", () => saveContextDocument(button.closest("[data-context-id]"), data));
   });
 }
 
-async function saveContextDocument(section) {
+async function saveContextDocument(section, data) {
   const id = section.dataset.contextId;
-  const content = section.querySelector("textarea").value;
   const button = section.querySelector("[data-save-context]");
+  const doc = data?.documents?.find((x) => x.id === id);
+  // Table docs: collect the edited cells back into { columns, rows }.
+  let patch;
+  if (doc?.table) {
+    const rows = doc.table.rows.map((row) => [...row]);
+    section.querySelectorAll(".ct-editable").forEach((cell) => {
+      rows[Number(cell.dataset.row)][Number(cell.dataset.col)] = cell.textContent.trim();
+    });
+    patch = { table: { columns: doc.table.columns, rows }, reason: "Edición de la tabla de evolución cognitiva" };
+  } else {
+    patch = { content: section.querySelector("textarea")?.value ?? "", reason: "Edición desde Contexto Dropi" };
+  }
   button.disabled = true;
   button.textContent = "Guardando…";
   try {
     const response = await fetch(`/api/context/${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: authHeaders(),
-      body: JSON.stringify({ content, reason: "Edición desde Contexto Dropi" }),
+      body: JSON.stringify(patch),
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
