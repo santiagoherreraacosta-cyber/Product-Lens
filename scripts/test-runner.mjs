@@ -26,6 +26,7 @@ run("snapshot: exportService", ["--test", "test/exportService.snapshot.test.js"]
 run("unit: phase-engine", ["--test", "tests/unit/phase-engine.test.js"]);
 run("unit: export-service", ["--test", "tests/unit/export-service.test.js"]);
 run("unit: extraction-service", ["--test", "tests/unit/extraction-service.test.js"]);
+run("unit: cycle-logic", ["--test", "tests/unit/cycle-logic.test.js"]);
 
 // Integration tests
 run("integration: api", ["--test", "tests/integration/api.test.js"]);

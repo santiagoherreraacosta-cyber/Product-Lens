@@ -6,6 +6,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
+import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
 
 const PORT = process.env.PORT || 8000;
 const ROOT = process.cwd();
@@ -118,33 +119,6 @@ async function persistCycles() {
 // Deep-merge plain objects (arrays and scalars from source override target).
 // Used by PATCH /api/cycles/:id so partial brief/experiment updates don't wipe
 // sibling fields (journey coherence hotfix).
-function deepMerge(target, source) {
-  if (source === null || typeof source !== "object" || Array.isArray(source)) return source;
-  const out = { ...(target && typeof target === "object" && !Array.isArray(target) ? target : {}) };
-  for (const key of Object.keys(source)) {
-    const sv = source[key];
-    if (sv && typeof sv === "object" && !Array.isArray(sv)) {
-      out[key] = deepMerge(out[key], sv);
-    } else {
-      out[key] = sv;
-    }
-  }
-  return out;
-}
-
-// --- F0 behavior validation (Fase 2) ---
-// Heuristic: reject titles framed as a solution/feature instead of a behavior.
-const FEATURE_TERMS = [
-  "construir", "crear", "agregar", "añadir", "implementar", "desarrollar", "lanzar",
-  "botón", "boton", "pantalla", "wizard", "modal", "banner", "popup", "feature",
-  "funcionalidad", "onboarding", "dashboard", "notificación", "notificacion",
-  "rediseñar", "rediseno", "integrar", "flujo nuevo", "nueva sección", "nueva seccion",
-];
-function looksLikeFeature(title) {
-  const t = String(title || "").toLowerCase();
-  return FEATURE_TERMS.some((term) => t.includes(term));
-}
-
 // --- LLM structured extraction (Fase 1) ---
 // After a chat turn, ask the model to extract Intervention Brief fields from the
 // conversation as a forced tool call, returning the LIVE cycle schema directly.
@@ -168,9 +142,6 @@ const BRIEF_EXTRACTION_TOOL = {
     },
   },
 };
-
-const BRIEF_FIELD_KEYS = ["behavior_statement", "evidencia_primaria", "segunda_fuente", "hipotesis", "senal_cuantitativa"];
-const CYCLE_TOP_KEYS = ["sub_perfil", "transicion", "causa"];
 
 async function extractBriefUpdates(apiKey, model, cycle, userMessage, reply) {
   try {
@@ -207,29 +178,6 @@ async function extractBriefUpdates(apiKey, model, cycle, userMessage, reply) {
 }
 
 // Merge extracted fields into the cycle without overwriting user-confirmed values.
-function applyBriefUpdates(cycle, updates) {
-  if (!updates || typeof updates !== "object") return { cycle, changed: [] };
-  const brief = { ...(cycle.brief ?? {}) };
-  const changed = [];
-  for (const key of BRIEF_FIELD_KEYS) {
-    const val = updates[key];
-    if (typeof val !== "string" || !val.trim()) continue;
-    if (brief[key]?.confirmed) continue; // never override a user-confirmed field
-    brief[key] = { value: val.trim(), confirmed: false, source: "llm_suggested" };
-    changed.push(`brief.${key}`);
-  }
-  const patch = { brief };
-  for (const key of CYCLE_TOP_KEYS) {
-    const val = updates[key];
-    if (typeof val !== "string" || !val.trim()) continue;
-    if (cycle[key]) continue; // don't override an existing top-level value
-    patch[key] = val.trim();
-    if (key === "causa") patch.causa_source = "llm_suggested";
-    changed.push(key);
-  }
-  return { cycle: { ...cycle, ...patch }, changed };
-}
-
 // --- JWT (HMAC-SHA256, no external deps) ---
 function b64url(buf) {
   return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
@@ -284,6 +232,7 @@ function makeUser(id, emailEnv, emailDefault, passwordEnv, role) {
 const USERS = [
   makeUser("u1", "ADMIN_EMAIL", "admin@dropi.co", "ADMIN_PASSWORD", "admin"),
   makeUser("u2", "PM_EMAIL", "pm@dropi.co", "PM_PASSWORD", "pm"),
+  makeUser("u3", "VIEWER_EMAIL", "viewer@dropi.co", "VIEWER_PASSWORD", "viewer"),
 ].filter(Boolean);
 
 function findUser(email, password) {
@@ -376,10 +325,35 @@ function getIp(req) {
   return (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
 }
 
+// --- Security headers (B7) ---
+// CSP allows self + Google Fonts (used by the SPA) and inline styles/scripts
+// (the app sets inline style attributes and ships small inline handlers /
+// printable-export windows). connect-src is self-only: the browser never talks
+// to the LLM directly — all model calls go through the server.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+function securityHeaders(res) {
+  res.setHeader("Content-Security-Policy", CSP);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+}
+
 // --- Request handler ---
 async function handle(req, res) {
   const origin = req.headers["origin"] || "";
   cors(res, origin);
+  securityHeaders(res);
 
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
