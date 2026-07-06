@@ -7,7 +7,7 @@ import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
-import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES } from "./src/doctrina.js";
+import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, SUB_PERFILES, TRANSITIONS } from "./src/doctrina.js";
 
 // Default phase seed (stepper UI) with canonical Spanish labels from the doctrine.
 const defaultPhases = () => DOCTRINE_PHASES.map((key, i) => ({ key, label: FASE_LABEL[key], state: i === 0 ? "active" : "todo" }));
@@ -136,8 +136,9 @@ const BRIEF_EXTRACTION_TOOL = {
     type: "object",
     properties: {
       behavior_statement: { type: "string", description: "Comportamiento objetivo: quién hace qué, cuándo, y no hace qué hoy." },
-      sub_perfil: { type: "string", description: "Sub-perfil del usuario (arquetipo canónico: Rebuscador Digital, Empleado Aspirante o Joven Visionario)." },
-      transicion: { type: "string", description: "Transición cognitiva (ej. Setup_Aha, Aha_Habito)." },
+      sub_perfil: { type: "string", enum: SUB_PERFILES, description: "Sub-perfil del usuario (arquetipo canónico de la doctrina)." },
+      transicion: { type: "string", enum: TRANSITIONS, description: "Transición cognitiva objetivo (par adyacente de la escala de 5 niveles)." },
+      segmento_objetivo: { type: "string", description: "Segmento: cohorte conductual concreta (ej. 'sellers inactivos 30d', 'registrados sin 1ª orden en 7d'). NO es el arquetipo." },
       causa: { type: "string", enum: ["M", "A", "P"], description: "Causa B=MAP: M=Motivación, A=Ability, P=Prompt." },
       evidencia_primaria: { type: "string", description: "Evidencia cuantitativa primaria del comportamiento." },
       segunda_fuente: { type: "string", description: "Segunda fuente de evidencia (triangulación)." },
@@ -509,9 +510,9 @@ async function handle(req, res) {
     const cycle = {
       id: `cycle-${crypto.randomUUID()}`,
       title: body.title,
-      sub_perfil: body.sub_perfil ?? null,
+      sub_perfil: normalizeSubPerfil(body.sub_perfil),
       segmento_objetivo: body.segmento_objetivo ?? null,
-      transicion: body.transicion ?? null,
+      transicion: normalizeTransition(body.transicion),
       causa: body.causa ?? null,
       causa_source: body.causa_source ?? null,
       fase_actual: body.fase_actual ?? "F0",
@@ -686,6 +687,10 @@ async function handle(req, res) {
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
       const now = new Date().toISOString();
+      // Enums de doctrina: normaliza alias a keys canónicas; valor no mapeable
+      // → null (el gate lo pedirá — asesora, no bloquea).
+      if ("sub_perfil" in body) body.sub_perfil = normalizeSubPerfil(body.sub_perfil);
+      if ("transicion" in body) body.transicion = normalizeTransition(body.transicion);
       // Deep-merge nested objects (brief/experiment/cierre) so a partial patch of
       // one field does not wipe the others. Scalars/arrays override normally.
       const updated = { ...deepMerge(cycle, body), id: cycleId, updatedAt: now, last_activity_at: now };

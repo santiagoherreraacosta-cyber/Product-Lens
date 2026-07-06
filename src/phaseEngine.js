@@ -10,6 +10,7 @@ const GATE_REQUIREMENTS = {
   F0: [
     { key: "behaviorStatement", message: "Falta el comportamiento objetivo.", isMet: hasBehaviorStatement },
     { key: "quantitativeSignal", message: "Falta la señal cuantitativa.", isMet: hasQuantitativeSignal },
+    { key: "segment", message: "Falta el segmento (cohorte conductual, ej. 'inactivos 30d').", isMet: hasSegment },
   ],
   F1: [
     { key: "sources", message: "Faltan al menos 2 fuentes de evidencia.", isMet: hasAtLeastTwoSources },
@@ -78,6 +79,11 @@ function hasBehaviorStatement(cycle) {
 
 function hasQuantitativeSignal(cycle) {
   return hasText(cycle.quantitativeSignal) || hasText(cycle.quantSignal) || briefHasValue(cycle, "senal_cuantitativa");
+}
+
+// Segmento = cohorte conductual (≠ sub-perfil/arquetipo). Doctrina §4, gate F0.
+function hasSegment(cycle) {
+  return hasText(cycle.segment) || hasText(cycle.segmento_objetivo);
 }
 
 function hasAtLeastTwoSources(cycle) {
