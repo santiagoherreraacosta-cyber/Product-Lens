@@ -801,7 +801,7 @@ async function handle(req, res) {
 
     if (!llmRes.ok) {
       const err = await llmRes.json().catch(() => ({}));
-      console.error("Anthropic API error:", err);
+      console.error("Anthropic API error, status:", llmRes.status);
       return json(res, { error: "LLM request failed", detail: err?.error?.message ?? llmRes.status }, 502);
     }
 
@@ -858,7 +858,9 @@ async function handle(req, res) {
         });
         if (!llmRes.ok) {
           const err = await llmRes.json().catch(() => ({}));
-          console.error("Anthropic API error:", err);
+          // Log only the status code — never the raw error body (may echo
+          // user/model content → log injection).
+          console.error("Anthropic API error, status:", llmRes.status);
           send("error", { error: "LLM request failed", detail: err?.error?.message ?? llmRes.status });
           return res.end();
         }
