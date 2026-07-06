@@ -1067,6 +1067,34 @@ function renderMessages(msgs) {
 }
 
 // --- Chat ---
+// Slash commands handled locally (no LLM round-trip). Returns true if handled.
+async function handleSlashCommand(text) {
+  if (text.startsWith("/nuevo-ciclo")) {
+    const title = text.replace("/nuevo-ciclo", "").trim();
+    if (title) await createCycle(title); else openNewCycleModal();
+    return true;
+  }
+  if (text.startsWith("/brief")) {
+    downloadBrief();
+    addAiNote("Brief exportado en Markdown. También queda vivo en el panel derecho.");
+    return true;
+  }
+  if (text.startsWith("/experimento")) {
+    setDeliverable("experiment");
+    addAiNote("Cambiando a Experiment Card. Completa los campos de hipótesis, métrica y criterio de stop.");
+    return true;
+  }
+  return false;
+}
+
+// Applies the chat result to local state after the reply is painted. Both the
+// streaming and JSON endpoints return a content-free payload (only the model
+// reply + changed brief fields), so we re-fetch the authoritative cycle
+// (persisted messages + auto-extracted brief) over GET /api/cycles.
+async function applyChatResult(data) {
+  if (currentCycleId) await refreshCycleAfterChat(data.changed);
+}
+
 async function sendMessage() {
   if (blockIfViewer()) return;
   const text = messageInput.value.trim();
@@ -1082,23 +1110,7 @@ async function sendMessage() {
   messageInput.value = "";
   chatInput.classList.remove("has-text");
 
-  if (text.startsWith("/nuevo-ciclo")) {
-    const title = text.replace("/nuevo-ciclo", "").trim();
-    if (title) await createCycle(title); else openNewCycleModal();
-    return;
-  }
-
-  if (text.startsWith("/brief")) {
-    downloadBrief();
-    addAiNote("Brief exportado en Markdown. También queda vivo en el panel derecho.");
-    return;
-  }
-
-  if (text.startsWith("/experimento")) {
-    setDeliverable("experiment");
-    addAiNote("Cambiando a Experiment Card. Completa los campos de hipótesis, métrica y criterio de stop.");
-    return;
-  }
+  if (await handleSlashCommand(text)) return;
 
   // Real LLM call
   inner.insertAdjacentHTML(
@@ -1109,40 +1121,83 @@ async function sendMessage() {
   const thinkingEl = inner.querySelector(".ai-message:last-child .ai-body p");
 
   try {
-    const res = await apiFetch("/api/chat", {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({ message: text, cycleId: currentCycleId }),
-    });
-    const data = await res.json();
-    thinkingEl.classList.remove("thinking");
+    const data = await streamChat(text, thinkingEl);
+    thinkingEl.classList.remove("thinking", "is-streaming");
     const reply = data.reply ?? data.error ?? "Sin respuesta.";
     thinkingEl.innerHTML = renderMarkdown(reply);
-    if (data.cycle) {
-      // Server is authoritative: it appended messages and auto-extracted brief
-      // fields from the conversation (Fase 1). Adopt it and refresh the brief.
-      cycles = cycles.map((c) => (c.id === data.cycle.id ? data.cycle : c));
-      renderActiveCycle();
-      renderBriefState();
-      flashBriefFields(data.changed);
-    } else {
-      // Fallback: keep local cycle.messages in sync
-      const activeCycle = getCurrentCycle();
-      if (activeCycle) {
-        const now = new Date().toISOString();
-        activeCycle.messages = [
-          ...(activeCycle.messages ?? []),
-          { id: `u-${Date.now()}`, role: "user", content: text, created_at: now },
-          { id: `a-${Date.now()}`, role: "assistant", content: reply, created_at: now },
-        ];
-        cycles = cycles.map((c) => (c.id === currentCycleId ? activeCycle : c));
-      }
-    }
+    await applyChatResult(data);
   } catch {
-    thinkingEl.classList.remove("thinking");
+    thinkingEl.classList.remove("thinking", "is-streaming");
     thinkingEl.textContent = "Error de conexión con el asistente.";
   }
   messageStream.scrollTop = messageStream.scrollHeight;
+}
+
+// After a streamed chat turn, pull the updated cycle from the JSON API and
+// refresh the brief panel (the SSE done event carries no cycle content).
+async function refreshCycleAfterChat(changed) {
+  try {
+    const res = await apiFetch("/api/cycles", { headers: authHeaders() });
+    if (!res.ok) return;
+    cycles = await res.json();
+    renderActiveCycle();
+    renderBriefState();
+    flashBriefFields(changed ?? []);
+  } catch { /* keep local state; next load will sync */ }
+}
+
+// B3 · consume /api/chat/stream (SSE): paints tokens progressively into
+// `liveEl` (typing effect) and resolves with the final payload {reply, cycle,
+// changed}. Falls back to the JSON endpoint if streaming isn't available.
+async function streamChat(text, liveEl) {
+  const payload = { method: "POST", headers: authHeaders(), body: JSON.stringify({ message: text, cycleId: currentCycleId }) };
+  const res = await apiFetch("/api/chat/stream", payload);
+  if (!res.ok || !res.body || !(res.headers.get("content-type") || "").includes("text/event-stream")) {
+    const fallback = await apiFetch("/api/chat", payload);
+    return fallback.json();
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let reply = "";
+  let finalData = null;
+  let streamError = null;
+  const handleEvent = (raw) => {
+    let event = "message";
+    let dataLine = "";
+    for (const line of raw.split("\n")) {
+      if (line.startsWith("event: ")) event = line.slice(7).trim();
+      else if (line.startsWith("data: ")) dataLine += line.slice(6);
+    }
+    if (!dataLine) return;
+    let data;
+    try { data = JSON.parse(dataLine); } catch { return; }
+    if (event === "token" && data.t) {
+      if (!reply) liveEl.classList.remove("thinking");
+      liveEl.classList.add("is-streaming");
+      reply += data.t;
+      // Plain text while streaming (no HTML sink on network data); the final
+      // reply is Markdown-rendered once the stream completes.
+      liveEl.textContent = reply;
+      messageStream.scrollTop = messageStream.scrollHeight;
+    } else if (event === "done") {
+      finalData = data;
+    } else if (event === "error") {
+      streamError = data;
+    }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buf.indexOf("\n\n")) >= 0) {
+      handleEvent(buf.slice(0, sep));
+      buf = buf.slice(sep + 2);
+    }
+  }
+  if (streamError && !finalData) return { reply: reply || null, error: streamError.detail || streamError.error };
+  return { reply, changed: finalData?.changed ?? [], streamed: true };
 }
 
 function addAiNote(content) {

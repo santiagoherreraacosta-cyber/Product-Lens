@@ -177,7 +177,84 @@ async function extractBriefUpdates(apiKey, model, cycle, userMessage, reply) {
   }
 }
 
-// Merge extracted fields into the cycle without overwriting user-confirmed values.
+// --- Chat helpers shared by /api/chat and /api/chat/stream (B3) ---
+function anthropicHeaders(apiKey) {
+  return { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+}
+
+// Conversation history (last 20 messages) + system prompt with cycle context.
+function buildChatContext(cycle) {
+  const history = (cycle?.messages ?? []).slice(-20).map((m) => ({ role: m.role, content: m.content }));
+  const cycleCtx = cycle ? JSON.stringify({
+    fase: cycle.fase_actual ?? cycle.activePhase,
+    sub_perfil: cycle.sub_perfil,
+    transicion: cycle.transicion,
+    causa: cycle.causa,
+    causa_source: cycle.causa_source,
+    brief: cycle.brief,
+    riesgos: cycle.riesgos,
+    estado: cycle.estado,
+  }, null, 2) : null;
+  const systemWithCtx = cycleCtx ? `${systemPrompt}\n\n---\n## CICLO ACTIVO\n${cycleCtx}` : systemPrompt;
+  return { history, systemWithCtx };
+}
+
+// Extracts the text delta from one SSE data line, or null when the line is
+// not a text_delta event (malformed lines are ignored).
+function extractTextDelta(line) {
+  if (!line.startsWith("data: ")) return null;
+  try {
+    const evt = JSON.parse(line.slice(6));
+    const isTextDelta = evt.type === "content_block_delta" && evt.delta?.type === "text_delta";
+    return isTextDelta ? (evt.delta.text || null) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Parses an Anthropic streaming (SSE) response body and yields text deltas.
+async function* anthropicTextDeltas(body) {
+  const decoder = new TextDecoder();
+  let buf = "";
+  for await (const chunk of body) {
+    buf += decoder.decode(chunk, { stream: true });
+    let sep;
+    while ((sep = buf.indexOf("\n\n")) >= 0) {
+      const rawEvent = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      for (const line of rawEvent.split("\n")) {
+        const text = extractTextDelta(line);
+        if (text) yield text;
+      }
+    }
+  }
+}
+
+// Persist the chat turn on the cycle + run structured brief extraction (Fase 1).
+async function persistChatTurn({ cycle, cycleId, message, reply, apiKey, actor }) {
+  if (!cycle) return { updatedCycle: null, extractionChanged: [] };
+  const now = new Date().toISOString();
+  const msgs = cycle.messages ?? [];
+  msgs.push({ id: crypto.randomUUID(), role: "user", content: message, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
+  msgs.push({ id: crypto.randomUUID(), role: "assistant", content: reply, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
+  let next = { ...cycle, messages: msgs, last_activity_at: now };
+
+  let extractionChanged = [];
+  if (apiKey) {
+    const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+    const updates = await extractBriefUpdates(apiKey, model, next, message, reply);
+    const applied = applyBriefUpdates(next, updates);
+    next = { ...applied.cycle };
+    extractionChanged = applied.changed;
+  }
+  next = { ...next, updatedAt: now };
+
+  cycles.set(cycleId, next);
+  void persistCycles();
+  if (extractionChanged.length) logAudit(actor || "anon", "brief_extracted", cycleId, { fields: extractionChanged });
+  return { updatedCycle: next, extractionChanged };
+}
+
 // --- JWT (HMAC-SHA256, no external deps) ---
 function b64url(buf) {
   return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
@@ -251,6 +328,7 @@ const routePermissions = {
   "PATCH /api/context": ["admin"],
   // Chat: public (rate limiting still applies)
   "POST /api/chat": null,
+  "POST /api/chat/stream": null,
   // Health check: public
   "GET /health": null,
   "GET /api/cycles": ["admin", "pm", "viewer"],
@@ -703,34 +781,16 @@ async function handle(req, res) {
 
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
     if (!ANTHROPIC_API_KEY) {
-      return json(res, { reply: "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] " + message });
+      // Static notice — never echo the request body back into the response.
+      return json(res, { reply: "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] Recibí tu mensaje y quedó guardado en el ciclo." });
     }
 
     const cycle = cycleId ? cycles.get(cycleId) : null;
-    // Build conversation history (last 20 messages)
-    const history = (cycle?.messages ?? []).slice(-20).map((m) => ({ role: m.role, content: m.content }));
-    // Build structured cycle context for system prompt
-    const cycleCtx = cycle ? JSON.stringify({
-      fase: cycle.fase_actual ?? cycle.activePhase,
-      sub_perfil: cycle.sub_perfil,
-      transicion: cycle.transicion,
-      causa: cycle.causa,
-      causa_source: cycle.causa_source,
-      brief: cycle.brief,
-      riesgos: cycle.riesgos,
-      estado: cycle.estado,
-    }, null, 2) : null;
-    const systemWithCtx = cycleCtx
-      ? `${systemPrompt}\n\n---\n## CICLO ACTIVO\n${cycleCtx}`
-      : systemPrompt;
+    const { history, systemWithCtx } = buildChatContext(cycle);
 
     const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
+      headers: anthropicHeaders(ANTHROPIC_API_KEY),
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
         max_tokens: 1024,
@@ -741,37 +801,87 @@ async function handle(req, res) {
 
     if (!llmRes.ok) {
       const err = await llmRes.json().catch(() => ({}));
-      console.error("Anthropic API error:", err);
+      console.error("Anthropic API error, status:", llmRes.status);
       return json(res, { error: "LLM request failed", detail: err?.error?.message ?? llmRes.status }, 502);
     }
 
     const data = await llmRes.json();
     const reply = data.content?.[0]?.text ?? "Sin respuesta del modelo.";
 
-    // Persist messages + run structured extraction to auto-fill the brief (Fase 1)
-    let updatedCycle = null;
-    let extractionChanged = [];
-    if (cycle) {
-      const now = new Date().toISOString();
-      const msgs = cycle.messages ?? [];
-      msgs.push({ id: crypto.randomUUID(), role: "user", content: message, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
-      msgs.push({ id: crypto.randomUUID(), role: "assistant", content: reply, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
-      let next = { ...cycle, messages: msgs, last_activity_at: now };
-
-      const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
-      const updates = await extractBriefUpdates(ANTHROPIC_API_KEY, model, next, message, reply);
-      const applied = applyBriefUpdates(next, updates);
-      next = { ...applied.cycle, updatedAt: now };
-      extractionChanged = applied.changed;
-
-      cycles.set(cycleId, next);
-      updatedCycle = next;
-      void persistCycles();
-      if (extractionChanged.length) logAudit(currentUser?.email || "anon", "brief_extracted", cycleId, { fields: extractionChanged });
-    }
-
+    const { extractionChanged } = await persistChatTurn({ cycle, cycleId, message, reply, apiKey: ANTHROPIC_API_KEY, actor: currentUser?.email });
     logAudit(currentUser?.email || "anon", "chat_message", cycleId || "global");
-    return json(res, { reply, cycle: updatedCycle, changed: extractionChanged });
+    // Return only the model reply + which brief fields changed. The persisted
+    // cycle (which embeds the user message) is re-fetched by the client over
+    // GET /api/cycles, so no request input is reflected into this response.
+    return json(res, { reply, changed: extractionChanged });
+  }
+
+  // --- Chat streaming (B3, spec §5.8): SSE with token events + final done ---
+  if (req.method === "POST" && pathname === "/api/chat/stream") {
+    const body = await readBody(req);
+    const { message, cycleId } = body;
+    if (!message?.trim()) return json(res, { error: "message required" }, 400);
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    const cycle = cycleId ? cycles.get(cycleId) : null;
+    let reply = "";
+    try {
+      if (!ANTHROPIC_API_KEY) {
+        // No key: stream a static fallback notice word-by-word so the UI path
+        // is identical with and without a configured model. (Static on purpose
+        // — no reflection of user input into the response.)
+        reply = "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] Recibí tu mensaje y quedó guardado en el ciclo.";
+        for (const word of reply.split(/(?<=\s)/)) {
+          send("token", { t: word });
+          await new Promise((r) => setTimeout(r, 15));
+        }
+      } else {
+        const { history, systemWithCtx } = buildChatContext(cycle);
+        const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: anthropicHeaders(ANTHROPIC_API_KEY),
+          body: JSON.stringify({
+            model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
+            max_tokens: 1024,
+            stream: true,
+            system: systemWithCtx,
+            messages: [...history, { role: "user", content: message }],
+          }),
+        });
+        if (!llmRes.ok) {
+          const err = await llmRes.json().catch(() => ({}));
+          // Log only the status code — never the raw error body (may echo
+          // user/model content → log injection).
+          console.error("Anthropic API error, status:", llmRes.status);
+          send("error", { error: "LLM request failed", detail: err?.error?.message ?? llmRes.status });
+          return res.end();
+        }
+        for await (const text of anthropicTextDeltas(llmRes.body)) {
+          reply += text;
+          send("token", { t: text });
+        }
+        if (!reply) reply = "Sin respuesta del modelo.";
+      }
+
+      const { extractionChanged } = await persistChatTurn({ cycle, cycleId, message, reply, apiKey: ANTHROPIC_API_KEY, actor: currentUser?.email });
+      logAudit(currentUser?.email || "anon", "chat_message", cycleId || "global");
+      // Deliberately minimal payload: no user/LLM content is reflected into
+      // the SSE response. The client already accumulated the reply from the
+      // token events and re-fetches the updated cycle over the JSON API.
+      send("done", { ok: true, changed: extractionChanged });
+    } catch (error) {
+      console.error("Chat stream error:", error);
+      send("error", { error: "Stream interrumpido", detail: error.message });
+    }
+    return res.end();
   }
 
   // --- Health check ---
