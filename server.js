@@ -7,6 +7,10 @@ import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
+import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES } from "./src/doctrina.js";
+
+// Default phase seed (stepper UI) with canonical Spanish labels from the doctrine.
+const defaultPhases = () => DOCTRINE_PHASES.map((key, i) => ({ key, label: FASE_LABEL[key], state: i === 0 ? "active" : "todo" }));
 
 const PORT = process.env.PORT || 8000;
 const ROOT = process.cwd();
@@ -132,7 +136,7 @@ const BRIEF_EXTRACTION_TOOL = {
     type: "object",
     properties: {
       behavior_statement: { type: "string", description: "Comportamiento objetivo: quién hace qué, cuándo, y no hace qué hoy." },
-      sub_perfil: { type: "string", description: "Sub-perfil del usuario (ej. Rebuscador Digital, Seller Explorador)." },
+      sub_perfil: { type: "string", description: "Sub-perfil del usuario (arquetipo canónico: Rebuscador Digital, Empleado Aspirante o Joven Visionario)." },
       transicion: { type: "string", description: "Transición cognitiva (ej. Setup_Aha, Aha_Habito)." },
       causa: { type: "string", enum: ["M", "A", "P"], description: "Causa B=MAP: M=Motivación, A=Ability, P=Prompt." },
       evidencia_primaria: { type: "string", description: "Evidencia cuantitativa primaria del comportamiento." },
@@ -519,14 +523,7 @@ async function handle(req, res) {
       cierre: null,
       messages: [],
       // legacy fields (stepper UI still uses these)
-      phases: body.phases ?? structuredClone([
-        { key: "F0", label: "Sense", state: "active" },
-        { key: "F1", label: "Diagnose", state: "todo" },
-        { key: "F2", label: "Design", state: "todo" },
-        { key: "F3", label: "Decide", state: "todo" },
-        { key: "F4", label: "Deploy", state: "todo" },
-        { key: "F5", label: "Distill", state: "todo" },
-      ]),
+      phases: body.phases ?? defaultPhases(),
       activePhase: body.activePhase ?? "F0",
       riskAccepted: false,
       createdAt: now,
@@ -598,7 +595,7 @@ async function handle(req, res) {
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
       // Iteration loop (Fase 2): closing with "iterando" does NOT close the
-      // cycle — it loops back to F1 (Diagnose) to re-diagnose, keeping history.
+      // cycle — it loops back to F1 (Diagnóstico) to re-diagnose, keeping history.
       const resultado = body.resultado_cierre ?? body.decision;
       if (resultado === "iterando") {
         const now = new Date().toISOString();
@@ -624,13 +621,22 @@ async function handle(req, res) {
         return json(res, { error: "learning and pattern_name required" }, 400);
       }
       const now = new Date().toISOString();
+      const decision = String(body.decision ?? body.resultado_cierre ?? "").trim() || null;
+      // Decisión obligatoria para cerrar (F5): si falta, no bloquea pero deja
+      // [CONFIRMAR] + un tag de riesgo persistente (decisión 5 · doctrina §4).
+      const baseCycle = decision
+        ? cycle
+        : acceptRisk(cycle, "F5", "Ciclo cerrado sin decisión explícita (escalar/matar/iterar) — pendiente [CONFIRMAR].", { id: currentUser?.sub, name: currentUser?.email });
       const patternId = `pat-${crypto.randomUUID()}`;
+      // Tipo derivado de la decisión (matar→anti_patron, escalar→patron),
+      // editable con body.tipo (decisión 9). Campos filtrables no nulos:
+      // sub_perfil "sin_clasificar" si falta (decisión 8).
       const newPattern = {
         id: patternId,
-        tipo: body.tipo ?? "patron",
+        tipo: body.tipo ?? patternTypeFromDecision(decision) ?? "patron",
         nombre: body.pattern_name.trim(),
         causa: cycle.causa ?? null,
-        sub_perfil: cycle.sub_perfil ?? null,
+        sub_perfil: (cycle.sub_perfil && String(cycle.sub_perfil).trim()) || "sin_clasificar",
         transicion: cycle.transicion ?? null,
         aprendizaje: body.learning.trim(),
         delta_metrica: body.delta?.trim() || null,
@@ -640,21 +646,21 @@ async function handle(req, res) {
         createdAt: now,
         createdBy: currentUser?.sub,
       };
-      const closedPhases = (cycle.phases ?? []).map((p) => ({
+      const closedPhases = (baseCycle.phases ?? []).map((p) => ({
         ...p,
         state: p.key === "F5" ? "done" : p.state === "active" ? "done" : p.state,
       }));
       const closedCycle = {
-        ...cycle,
+        ...baseCycle,
         estado: "cerrado",
         fase_actual: "F5",
         activePhase: "F5",
         phases: closedPhases,
-        resultado_cierre: body.resultado_cierre ?? body.decision ?? null,
+        resultado_cierre: decision,
         cierre: {
           metric_result: body.metric_result ?? null,
           delta: body.delta ?? null,
-          decision: body.decision ?? null,
+          decision: decision ?? "[CONFIRMAR]",
           learning: body.learning.trim(),
           pattern_id: patternId,
         },
@@ -749,14 +755,7 @@ async function handle(req, res) {
         experiment: {},
         cierre: null,
         messages: [],
-        phases: [
-          { key: "F0", label: "Sense", state: "active" },
-          { key: "F1", label: "Diagnose", state: "todo" },
-          { key: "F2", label: "Design", state: "todo" },
-          { key: "F3", label: "Decide", state: "todo" },
-          { key: "F4", label: "Deploy", state: "todo" },
-          { key: "F5", label: "Distill", state: "todo" },
-        ],
+        phases: defaultPhases(),
         activePhase: "F0",
         riskAccepted: false,
         reusedFromPattern: patId,

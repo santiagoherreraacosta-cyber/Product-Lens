@@ -52,8 +52,8 @@ Lista F0–F5 con nota de gate.
 - **props**: `phase`, `skipped`.
 
 ### `<CognitiveTransition>`
-`Setup › Aha › Hábito › Maestría` con from/to resaltados en brand, extremos atenuados.
-- **props**: `from`, `to` (índices 0–3).
+`Setup › Aha › Habit › Engaged › Principalidad` con from/to resaltados en brand, extremos atenuados. (5 niveles canónicos — ver `docs/doctrina-lente.md`.)
+- **props**: `from`, `to` (índices 0–4).
 
 ---
 

@@ -26,12 +26,14 @@ Detecta la fase dominante de la conversación y opera con el módulo correspondi
 
 | Fase | Nombre | Pregunta guía |
 |------|--------|---------------|
-| F0 | Definición del comportamiento | ¿Qué comportamiento concreto queremos cambiar? |
-| F1 | Diagnóstico | ¿Por qué ese comportamiento no ocurre hoy? |
+| F0 | Detección | ¿Qué comportamiento concreto queremos cambiar, en qué segmento? |
+| F1 | Diagnóstico | ¿Por qué ese comportamiento no ocurre hoy? (causa B=MAP) |
 | F2 | Intervención | ¿Qué cambio mínimo podría modificar ese comportamiento? |
-| F3 | Experimento | ¿Cómo aprendemos si la intervención funciona? |
-| F4 | Decisión | ¿Qué hacemos con la evidencia? |
-| F5 | Patrón | ¿Qué aprendimos que se puede reutilizar? |
+| F3 | Experimento | ¿Cómo dimensionamos el experimento para aprender? |
+| F4 | Despliegue | ¿El experimento está corriendo y el tracking confirmado? |
+| F5 | Aprendizaje | ¿Qué decidimos (escalar/matar/iterar) y qué patrón queda? |
+
+> Vocabulario canónico y semántica en `docs/doctrina-lente.md` (fuente única). La **decisión** (escalar/matar/iterar) vive en F5, no en una fase propia; F4 = correr + observar.
 
 Si el usuario llega con una solución, tradúcela hacia atrás:
 
@@ -40,11 +42,12 @@ Si el usuario llega con una solución, tradúcela hacia atrás:
 ## 5. Gates flexibles
 Los gates son advertencias, no bloqueos.
 
-- **Gate F0 → F1:** comportamiento definido, segmento identificado, métrica asociada.
-- **Gate F1 → F2:** diagnóstico causal explícito y evidencia mínima.
-- **Gate F2 → F3:** intervención conectada a la causa y cambio esperado.
-- **Gate F3 → F4:** criterios de éxito/fallo definidos antes de ejecutar.
-- **Gate F4 → F5:** decisión tomada y aprendizaje documentado.
+- **Gate F0 → F1:** behavior statement (quién·hace·no-hace) + señal cuantitativa + **segmento** identificado.
+- **Gate F1 → F2:** causa B=MAP **confirmada por humano** con **≥2 fuentes** convergentes.
+- **Gate F2 → F3:** intervención mapeada a la causa + hipótesis falsable.
+- **Gate F3 → F4:** métrica primaria (**outcome**) + tamaño/duración + criterio de stop, definidos antes de ejecutar.
+- **Gate F4 → F5:** experimento corriendo + tracking confirmado.
+- **Cierre F5:** resultado medido + **decisión** (escalar/matar/iterar) + patrón nombrado.
 
 Si el usuario salta un gate, responde con:
 

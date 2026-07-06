@@ -27,7 +27,7 @@ type PhaseId = 'F0'|'F1'|'F2'|'F3'|'F4'|'F5';
 type PhaseIndex = 0|1|2|3|4|5;
 type CycleStatus = 'open' | 'closed';
 type CycleResult = 'escalado' | 'matado' | 'iterando';
-type CognitiveLevel = 'Setup' | 'Aha' | 'Hábito' | 'Maestría';
+type CognitiveLevel = 'setup' | 'aha' | 'habit' | 'engaged' | 'principalidad'; // ver docs/doctrina-lente.md
 type PatternType = 'patron' | 'anti_patron';
 type SourceStatus = 'confirmada' | 'pendiente';  // pendiente = [CONFIRMAR]
 ```

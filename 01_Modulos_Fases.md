@@ -1,6 +1,8 @@
 # 01 — Módulos operativos F0–F5
 
-## F0 — Definición del comportamiento
+> Vocabulario y enums canónicos en `docs/doctrina-lente.md` (fuente única). Fases: F0 Detección · F1 Diagnóstico · F2 Intervención · F3 Experimento · F4 Despliegue · F5 Aprendizaje. La **decisión** (escalar/matar/iterar) vive en F5.
+
+## F0 — Detección
 
 ### Objetivo
 Convertir un problema ambiguo en un comportamiento observable, situado en un segmento y conectado a una métrica.
@@ -40,15 +42,19 @@ Identificar hipótesis causales sobre por qué el comportamiento no ocurre.
 - Evidencia cuantitativa o cualitativa.
 - Momentos de fricción conocidos.
 
-### Marco de diagnóstico
-Clasifica causas posibles:
+### Marco de diagnóstico — B=MAP
+La causa se clasifica en **una** de tres (enum primario `M | A | P`):
 
-- **Motivación:** el usuario no quiere o no ve valor.
-- **Claridad:** no entiende qué hacer o por qué.
-- **Confianza:** percibe riesgo o duda del resultado.
-- **Capacidad:** no tiene recursos, conocimiento o setup.
-- **Fricción:** el proceso es largo, difícil o falla.
-- **Incentivo:** el sistema premia otra conducta.
+- **M · Motivación:** ¿no quiere / no ve el valor?
+- **A · Ability:** ¿quiere pero no puede / hay fricción?
+- **P · Prompt:** ¿puede y quiere, pero el trigger llega mal?
+
+Opcionalmente refina con una **sub-causa** (lista cerrada, no maneja el filtro):
+- **M:** motivación (no ve el valor) · confianza (no se fía) · incentivo (costo/beneficio no compensa).
+- **A:** claridad (no entiende qué/cómo) · capacidad (no tiene skill/recurso) · fricción (el flujo cuesta esfuerzo).
+- **P:** timing (momento equivocado) · visibilidad (existe pero no lo nota) · ausencia (no hay trigger).
+
+La causa la **propone** el asistente y la **confirma el humano** (nunca auto-commit sin confirmación).
 
 ### Preguntas guía
 1. ¿Qué señales tenemos de la causa?
@@ -60,8 +66,8 @@ Clasifica causas posibles:
 ### Gate de salida
 Puedes pasar a F2 si existe:
 
-- Hipótesis causal principal.
-- Evidencia que la sostiene.
+- Causa B=MAP (M/A/P) **confirmada por el humano**.
+- **≥2 fuentes** de evidencia convergentes que la sostienen.
 - Evidencia faltante marcada.
 - Riesgo de explicación alternativa.
 
@@ -156,63 +162,68 @@ Puedes pasar a F4 si están definidos:
 - Confundir engagement superficial con activación.
 - No instrumentar guardrails.
 
-## F4 — Decisión
+## F4 — Despliegue
 
 ### Objetivo
-Tomar una decisión explícita con base en evidencia.
+Lanzar el experimento y observarlo corriendo (estado *live*), sin leer resultados antes de tiempo.
 
-### Opciones de decisión
-- Escalar.
-- Iterar.
-- Pausar.
-- Descartar.
-- Re-diagnosticar.
+### Inputs mínimos
+- Experiment Card cerrada en F3 (métrica primaria, tamaño/duración, criterio de stop).
+- Tracking/instrumentación de los eventos necesarios.
 
 ### Preguntas guía
-1. ¿Qué ocurrió contra el criterio definido?
-2. ¿Qué aprendimos sobre la causa?
-3. ¿Qué no podemos concluir?
-4. ¿La intervención movió comportamiento o solo métricas proxy?
-5. ¿Qué decisión minimiza costo de oportunidad?
+1. ¿El experimento está efectivamente corriendo?
+2. ¿El tracking de los eventos está confirmado y llegando?
+3. ¿Cuánto falta para el criterio de stop (día X de N, muestra acumulada)?
+4. ¿Algún guardrail se está deteriorando y obliga a parar antes?
+5. ¿Estamos resistiendo la tentación de leer el resultado antes del stop (no peeking)?
 
 ### Gate de salida
-Puedes pasar a F5 si hay:
+Puedes pasar a F5 si:
 
-- Decisión tomada.
-- Racional documentado.
-- Aprendizaje explícito.
-- Próximo paso.
+- El experimento está corriendo.
+- El tracking está confirmado.
+
+### Trampas
+- Leer resultados antes del criterio de stop (peeking) y decidir con ruido.
+- Lanzar sin tracking → no se puede medir.
+- Ignorar guardrails en rojo por no cortar el experimento.
+
+## F5 — Aprendizaje
+
+### Objetivo
+Medir el resultado, **tomar la decisión** (escalar/matar/iterar) y destilar el ciclo en memoria reutilizable para Dropi.
+
+### Inputs mínimos
+- Problema original y diagnóstico (causa).
+- Intervención.
+- Resultado medido contra el criterio de F3.
+
+### Decisión (vive aquí)
+Con la evidencia ya medida, decide:
+- **Escalar** — la hipótesis se sostuvo → nace un **patrón**.
+- **Matar** — la hipótesis se refutó → nace un **anti-patrón**.
+- **Iterar** — inconcluso o parcial → vuelve a F1 con lo aprendido.
+
+### Preguntas guía
+1. ¿Qué ocurrió contra el criterio definido? ¿La intervención movió comportamiento o solo métricas proxy?
+2. ¿Qué decisión tomamos (escalar/matar/iterar) y por qué?
+3. ¿Qué patrón/anti-patrón de comportamiento vimos y en qué segmento aplica?
+4. ¿Qué condiciones deben cumplirse para reutilizarlo?
+5. ¿Qué no podemos concluir?
+
+### Gate de cierre
+Para cerrar el ciclo debe haber:
+
+- Resultado medido.
+- **Decisión** (escalar/matar/iterar) — si falta, se marca `[CONFIRMAR]` y queda como riesgo, no bloquea.
+- Patrón nombrado (con causa y sub-perfil para que sea filtrable).
+
+### Salida
+Usa la plantilla “Patrón de aprendizaje” de `02_Plantillas_Entregables.md`. El tipo (patrón/anti-patrón) se deriva de la decisión.
 
 ### Trampas
 - Declarar éxito por una métrica secundaria.
-- Escalar sin entender mecanismo.
-- Iterar eternamente sin decisión.
-- Ignorar efectos negativos en guardrails.
-
-## F5 — Patrón de aprendizaje
-
-### Objetivo
-Convertir el ciclo en memoria reutilizable para Dropi.
-
-### Inputs mínimos
-- Problema original.
-- Diagnóstico.
-- Intervención.
-- Resultado.
-- Decisión.
-
-### Preguntas guía
-1. ¿Qué patrón de comportamiento vimos?
-2. ¿En qué segmento aplica?
-3. ¿Qué intervención funcionó o no funcionó?
-4. ¿Qué condiciones deben cumplirse para reutilizarlo?
-5. ¿Qué antipatrones debemos evitar?
-
-### Salida
-Usa la plantilla “Patrón de aprendizaje” de `02_Plantillas_Entregables.md`.
-
-### Trampas
-- Guardar anécdotas como reglas generales.
-- Omitir condiciones de contexto.
-- No distinguir evidencia de interpretación.
-- Reutilizar patrones fuera del segmento original.
+- Escalar sin entender el mecanismo.
+- Iterar eternamente sin decidir.
+- Guardar anécdotas como reglas; omitir condiciones de contexto; reutilizar fuera del segmento original.

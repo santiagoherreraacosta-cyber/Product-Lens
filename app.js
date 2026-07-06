@@ -1,5 +1,6 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
 import { markdownToPdfHtml } from "./src/exportService.js";
+import { FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS } from "./src/doctrina.js";
 
 // --- Constants ---
 const THEME_KEY = "dropi-workspace-theme";
@@ -59,12 +60,12 @@ const userEmailEl = document.querySelector("#userEmail");
 
 // --- Phase seed (template for new cycles) ---
 const phaseSeed = [
-  { key: "F0", label: "Sense", state: "active" },
-  { key: "F1", label: "Diagnose", state: "todo" },
-  { key: "F2", label: "Design", state: "todo" },
-  { key: "F3", label: "Decide", state: "todo" },
-  { key: "F4", label: "Deploy", state: "todo" },
-  { key: "F5", label: "Distill", state: "todo" },
+  { key: "F0", label: FASE_LABEL.F0, state: "active" },
+  { key: "F1", label: FASE_LABEL.F1, state: "todo" },
+  { key: "F2", label: FASE_LABEL.F2, state: "todo" },
+  { key: "F3", label: FASE_LABEL.F3, state: "todo" },
+  { key: "F4", label: FASE_LABEL.F4, state: "todo" },
+  { key: "F5", label: FASE_LABEL.F5, state: "todo" },
 ];
 
 const prompts = [
@@ -272,7 +273,7 @@ function openModal(id, innerHtml) {
 function openNewCycleModal() {
   const overlay = openModal("newCycleModal", `
     <div class="export-modal-card newcycle-card">
-      <p class="eyebrow">Nuevo ciclo · F0 Sense</p>
+      <p class="eyebrow">Nuevo ciclo · F0 ${FASE_LABEL.F0}</p>
       <h2 class="pd-title">Empieza por un comportamiento, no por una feature.</h2>
       <label class="nc-label" for="ncBehavior">¿Qué seller, haciendo qué, no está haciendo qué?</label>
       <textarea id="ncBehavior" class="nc-textarea" rows="3" placeholder="El Rebuscador Digital no configura su 2º envío dentro de las 72h tras el primer pedido…"></textarea>
@@ -332,7 +333,7 @@ async function createCycle(title, extra = {}) {
     renderActiveCycle();  // also calls loadBriefFromCycle internally
     renderStepper();
     renderBriefState();
-    addAiNote(`Nuevo ciclo "${escapeHtml(cycle.title)}" en F0 · Sense. Empecemos: ¿qué seller, haciendo qué, no está haciendo qué?`);
+    addAiNote(`Nuevo ciclo "${escapeHtml(cycle.title)}" en F0 · ${FASE_LABEL.F0}. Empecemos: ¿qué seller, haciendo qué, no está haciendo qué?`);
     setView("workspace");
   } catch {
     console.warn("No se pudo crear el ciclo.");
@@ -369,7 +370,7 @@ async function updateCycle(patch) {
 let cyclesFilter = "all";
 
 // Cognitive ladder for the transition path on cards (A3).
-const COG_LEVELS = ["Setup", "Aha", "Hábito", "Maestría"];
+const COG_LEVELS = COGNITIVE_LEVELS.map((l) => COGNITIVE_LABEL[l]);
 function cognitivePathHtml(transicion) {
   if (!transicion) return "";
   const parts = String(transicion).split(/[_→-]/).map((s) => s.trim());
@@ -446,12 +447,12 @@ function renderCyclesList() {
 // A1 · Phase guide: pinned block above the chat with the active phase's
 // objective and a live checklist of its gate requirements.
 const PHASE_META = {
-  F0: { label: "Sense", goal: "Detecta un comportamiento anómalo: ¿qué seller, haciendo qué, no está haciendo qué? Añade una señal cuantitativa." },
-  F1: { label: "Diagnose", goal: "Encuentra la causa raíz con B=MAP. Necesitas ≥2 fuentes confirmadas y declarar la causa (Motivación / Ability / Prompt)." },
-  F2: { label: "Design", goal: "Diseña la intervención sobre la causa detectada y formula una hipótesis falsable." },
-  F3: { label: "Decide", goal: "Dimensiona el experimento: métrica de éxito, tamaño/duración y criterio de stop." },
-  F4: { label: "Deploy", goal: "Lanza y observa: experimento corriendo y tracking confirmado." },
-  F5: { label: "Distill", goal: "Extrae el aprendizaje: resultado, decisión (escalar/matar/iterar) y patrón nombrado." },
+  F0: { label: FASE_LABEL.F0, goal: "Detecta un comportamiento anómalo: ¿qué seller, haciendo qué, no está haciendo qué? Añade una señal cuantitativa y el segmento." },
+  F1: { label: FASE_LABEL.F1, goal: "Encuentra la causa raíz con B=MAP. Necesitas ≥2 fuentes confirmadas y la causa (Motivación / Ability / Prompt) confirmada por ti." },
+  F2: { label: FASE_LABEL.F2, goal: "Diseña la intervención sobre la causa detectada y formula una hipótesis falsable." },
+  F3: { label: FASE_LABEL.F3, goal: "Dimensiona el experimento: métrica de éxito (outcome), tamaño/duración y criterio de stop." },
+  F4: { label: FASE_LABEL.F4, goal: "Despliega y observa: experimento corriendo y tracking confirmado. No leas resultados antes del criterio de stop." },
+  F5: { label: FASE_LABEL.F5, goal: "Mide, decide (escalar/matar/iterar) y destila el patrón nombrado." },
 };
 
 function renderPhaseGuide(cycle) {
@@ -593,7 +594,7 @@ async function closeCycle() {
       renderActiveCycle();
       renderStepper();
       renderIterationBanner(cycle.iterationCount ?? 2);
-      addAiNote(`Iteración ${cycle.iterationCount ?? 2} — de vuelta en F1 · Diagnose para re-diagnosticar.`);
+      addAiNote(`Iteración ${cycle.iterationCount ?? 2} — de vuelta en F1 · ${FASE_LABEL.F1} para re-diagnosticar.`);
       if (closeCycleBtn) { closeCycleBtn.disabled = false; closeCycleBtn.textContent = "Cerrar ciclo y crear patrón"; }
       return;
     }
@@ -663,7 +664,7 @@ function applyLibraryFilters() {
 function renderPatternsList(list = patterns) {
   populateLibraryFacets();
   if (!list.length) {
-    patternsList.innerHTML = `<p class="empty-library">${patterns.length ? "Sin patrones para este filtro." : "Aquí aparecerán los aprendizajes del equipo. Para crear el primero, lleva un ciclo hasta F5 · Distill y ciérralo con un aprendizaje."}</p>`;
+    patternsList.innerHTML = `<p class="empty-library">${patterns.length ? "Sin patrones para este filtro." : `Aquí aparecerán los aprendizajes del equipo. Para crear el primero, lleva un ciclo hasta F5 · ${FASE_LABEL.F5} y ciérralo con un aprendizaje.`}</p>`;
     return;
   }
   patternsList.innerHTML = list
@@ -1273,7 +1274,7 @@ function renderIterationBanner(count) {
   const inner = messageStream.querySelector(".stream-inner") || messageStream;
   inner.insertAdjacentHTML(
     "beforeend",
-    `<div class="iteration-banner">↻ Iteración ${escapeHtml(String(count))} — de vuelta en F1 · Diagnose</div>`
+    `<div class="iteration-banner">↻ Iteración ${escapeHtml(String(count))} — de vuelta en F1 · ${FASE_LABEL.F1}</div>`
   );
   messageStream.scrollTop = messageStream.scrollHeight;
 }

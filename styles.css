@@ -232,10 +232,7 @@ button { cursor: pointer; }
 .chip.cause { font-weight: 700; }
 .chip .dot,
 .live-badge .dot { border-radius: 999px; display: inline-block; height: 6px; width: 6px; }
-.chip.ability { background: var(--blue-soft); color: var(--blue); }
-.chip.ability .dot { background: var(--blue); }
-.chip.motivation { background: var(--violet-soft); color: var(--violet); }
-.chip.prompt { background: var(--teal-soft); color: var(--teal); }
+/* Colores de causa B=MAP (doctrina §1): M violeta · A azul · P teal — una sola convención (.cause-chip.M/.A/.P, ver abajo). */
 .cognitive-path { align-items: center; color: var(--text2); display: flex; font-size: 11px; gap: 5px; }
 .cognitive-path strong { color: var(--orange); font-weight: 700; }
 .muted-step { opacity: .5; }
@@ -692,9 +689,10 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 /* --- Chips --- */
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .chip { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--surface2, #F3F4F6); color: var(--text2, #6B7280); border: 1px solid var(--line, #E5E7EB); }
-.cause-chip.M { background: #EDE9FE; color: #7C3AED; border-color: #C4B5FD; }
-.cause-chip.A { background: #DBEAFE; color: #1D4ED8; border-color: #BFDBFE; }
-.cause-chip.P { background: #CCFBF1; color: #0D9488; border-color: #99F6E4; }
+/* Doctrina §1: M=#8B5CF6 (--violet), A=#3B82F6 (--blue), P=#14B8A6 (--teal). Theme-aware vía tokens. */
+.cause-chip.M { background: var(--violet-soft); color: var(--violet); border-color: color-mix(in srgb, var(--violet) 35%, transparent); }
+.cause-chip.A { background: var(--blue-soft); color: var(--blue); border-color: color-mix(in srgb, var(--blue) 35%, transparent); }
+.cause-chip.P { background: var(--teal-soft); color: var(--teal); border-color: color-mix(in srgb, var(--teal) 35%, transparent); }
 
 /* --- Cycle card status pills --- */
 .status-pill.closed { background: #D1FAE5; color: #065F46; }

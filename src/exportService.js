@@ -21,7 +21,7 @@ export function createDefaultExportState(overrides = {}) {
     },
     conversation: [
       { role: "user", text: "Tengo un problema de activación: muchos sellers llegan al Aha, pero no configuran el segundo envío." },
-      { role: "assistant", text: "F1 · Diagnose queda abierto hasta confirmar segunda fuente para Ability." },
+      { role: "assistant", text: "F1 · Diagnóstico queda abierto hasta confirmar segunda fuente para Ability." },
     ],
     risks: {
       assumed: ["F1: Diagnóstico con 1 sola fuente. Riesgo aceptado por Santiago · 25 jun."],
