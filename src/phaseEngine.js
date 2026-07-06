@@ -13,7 +13,7 @@ const GATE_REQUIREMENTS = {
   ],
   F1: [
     { key: "sources", message: "Faltan al menos 2 fuentes de evidencia.", isMet: hasAtLeastTwoSources },
-    { key: "bmapCause", message: "Falta la causa B=MAP (Motivación, Ability o Prompt).", isMet: hasBmapCause },
+    { key: "bmapCause", message: "Falta confirmar la causa B=MAP (Motivación, Ability o Prompt) — la sugerida por la IA no basta.", isMet: hasBmapCause },
   ],
   F2: [
     { key: "intervention", message: "Falta la intervención.", isMet: hasIntervention },
@@ -95,7 +95,12 @@ function hasAtLeastTwoSources(cycle) {
 function hasBmapCause(cycle) {
   const generic = cycle.cause ?? cycle.diagnosis?.cause ?? cycle.bmapCause;
   if (["Motivation", "Ability", "Prompt"].includes(String(generic ?? ""))) return true;
-  return ["M", "A", "P"].includes(String(cycle.causa ?? ""));
+  // Live schema: the cause must be a valid B=MAP value AND confirmed by the
+  // human (propose→confirm). An LLM-suggested cause is a hypothesis, not a
+  // diagnosis — symmetric with hasAtLeastTwoSources requiring confirmed evidence.
+  const isBmap = ["M", "A", "P"].includes(String(cycle.causa ?? ""));
+  const confirmed = cycle.causa_source === "pm_confirmed" || cycle.brief?.causa?.confirmed === true;
+  return isBmap && confirmed;
 }
 
 function hasIntervention(cycle) {

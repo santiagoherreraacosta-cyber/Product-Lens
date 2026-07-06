@@ -1,5 +1,7 @@
 # Mapa Front ↔ Back (estado real)
 
+> ⚠️ **Documento histórico (desactualizado).** Refleja un estado previo. Varias secciones "NO construido" ya se implementaron (gates server-side con 422 + `acceptRisk`, export con validación, loop de iteración, validación F0 anti-feature, streaming SSE, eventos de analytics). Úsalo solo como referencia de arquitectura, no de estado actual.
+
 Cruce de cada llamada del frontend (`app.js`) contra las rutas del backend (`server.js`).
 Objetivo: garantizar que no haya "front muerto" (UI que llama a algo que no existe).
 
