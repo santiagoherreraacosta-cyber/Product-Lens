@@ -52,13 +52,47 @@ export function patternTypeFromDecision(decision) {
   return null; // iterar no cierra en patrón; otros → sin derivar
 }
 
-// Helpers de validación (devuelven el valor saneado o null).
+// Helpers de normalización (devuelven la key canónica o null).
+// Aceptan alias: labels con espacios/tildes/mayúsculas ("Rebuscador Digital"),
+// formatos viejos ("Setup_Aha", "Aha_Habito"). Un valor no mapeable → null;
+// el gate lo pedirá (asesora, no bloquea) — nunca un 400 duro.
+const slug = (v) => String(v ?? "")
+  .trim()
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/[\s→>-]+/g, "_");
+
+const TRANSITION_ALIASES = {
+  setup_aha: "setup_aha",
+  aha_habit: "aha_habit",
+  aha_habito: "aha_habit",
+  habit_engaged: "habit_engaged",
+  habito_engaged: "habit_engaged",
+  engaged_principalidad: "engaged_principalidad",
+};
+
 export function normalizeSubPerfil(v) {
-  return SUB_PERFILES.includes(v) ? v : null;
+  const s = slug(v);
+  return SUB_PERFILES.includes(s) ? s : null;
 }
 export function normalizeTransition(v) {
-  return TRANSITIONS.includes(v) ? v : null;
+  return TRANSITION_ALIASES[slug(v)] ?? null;
 }
 export function normalizeCausa(v) {
-  return CAUSA.includes(v) ? v : null;
+  const s = String(v ?? "").trim().toUpperCase();
+  return CAUSA.includes(s) ? s : null;
+}
+
+// Labels de display: "setup_aha" → "Setup → Aha".
+export function transitionLabel(t) {
+  const key = TRANSITION_ALIASES[slug(t)];
+  if (!key) return t ?? "";
+  const cut = key.indexOf("_");
+  const from = key.slice(0, cut);
+  const to = key.slice(cut + 1);
+  return `${COGNITIVE_LABEL[from] ?? from} → ${COGNITIVE_LABEL[to] ?? to}`;
+}
+export function subPerfilLabel(sp) {
+  return SUB_PERFIL_LABEL[normalizeSubPerfil(sp)] ?? (sp ?? "");
 }

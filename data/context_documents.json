@@ -151,120 +151,146 @@
     },
     {
       "id": "perfiles",
-      "title": "6.7 Perfiles de seller",
-      "content": "Sub-perfiles de seller que usa el equipo para diagnosticar (B=MAP):\n\n- **Rebuscador Digital:** busca ingreso extra, alta motivación inicial, baja tolerancia a fricción operativa. `[CONFIRMAR: tamaño del segmento]`\n- **Seller Explorador:** prueba la plataforma sin compromiso; necesita un Aha temprano para convertir intención en hábito. `[CONFIRMAR: tamaño del segmento]`\n- **Operador en Escala:** ya vende en otros canales; evalúa a Dropi por eficiencia. Sensible a confiabilidad y tiempos. `[CONFIRMAR: tamaño del segmento]`\n\nRegla: todo ciclo debe nombrar el sub-perfil objetivo; si no está claro, es un gate de F0.",
+      "title": "6.7 Sub-perfiles de seller (doctrina)",
+      "content": "Sub-perfiles canónicos (doctrina §3 — enum cerrado; el diagnóstico siempre nombra uno):\n\n- **Rebuscador Digital** (26–38): busca un ingreso extra inmediato, ya digital. Recurso más escaso: **tiempo**. Barrera Setup→Aha: \"¿Cuánto tarda en llegarme el dinero?\"\n- **Empleado Aspirante** (40–55): quiere independencia económica; viene con mentalidad de empleado. Recurso más escaso: **confianza**. Barrera Setup→Aha: \"¿Esto es legítimo? ¿Me van a estafar?\"\n- **Joven Visionario** (22–26): quiere construir algo propio desde cero. Recurso más escaso: **capital**. Barrera Setup→Aha: \"¿Puedo empezar sin plata?\"\n\nRegla: todo ciclo debe nombrar el sub-perfil objetivo; si no está claro, es un gate de F0. `sin_clasificar` existe solo como faceta visible de deuda, no como destino.",
       "sortOrder": 8,
       "pendingCount": 0,
-      "updatedAt": "2026-07-03T14:29:05.000Z",
-      "updatedBy": "seed",
-      "version": 1,
+      "updatedAt": "2026-07-06T19:18:15.000Z",
+      "updatedBy": "doctrina-v3",
+      "version": 2,
       "versions": [
         {
-          "version": 1,
-          "title": "6.7 Perfiles de seller",
-          "content": "Sub-perfiles de seller que usa el equipo para diagnosticar (B=MAP):\n\n- **Rebuscador Digital:** busca ingreso extra, alta motivación inicial, baja tolerancia a fricción operativa. `[CONFIRMAR: tamaño del segmento]`\n- **Seller Explorador:** prueba la plataforma sin compromiso; necesita un Aha temprano para convertir intención en hábito. `[CONFIRMAR: tamaño del segmento]`\n- **Operador en Escala:** ya vende en otros canales; evalúa a Dropi por eficiencia. Sensible a confiabilidad y tiempos. `[CONFIRMAR: tamaño del segmento]`\n\nRegla: todo ciclo debe nombrar el sub-perfil objetivo; si no está claro, es un gate de F0.",
+          "version": 2,
+          "title": "6.7 Sub-perfiles de seller (doctrina)",
+          "content": "Sub-perfiles canónicos (doctrina §3 — enum cerrado; el diagnóstico siempre nombra uno):\n\n- **Rebuscador Digital** (26–38): busca un ingreso extra inmediato, ya digital. Recurso más escaso: **tiempo**. Barrera Setup→Aha: \"¿Cuánto tarda en llegarme el dinero?\"\n- **Empleado Aspirante** (40–55): quiere independencia económica; viene con mentalidad de empleado. Recurso más escaso: **confianza**. Barrera Setup→Aha: \"¿Esto es legítimo? ¿Me van a estafar?\"\n- **Joven Visionario** (22–26): quiere construir algo propio desde cero. Recurso más escaso: **capital**. Barrera Setup→Aha: \"¿Puedo empezar sin plata?\"\n\nRegla: todo ciclo debe nombrar el sub-perfil objetivo; si no está claro, es un gate de F0. `sin_clasificar` existe solo como faceta visible de deuda, no como destino.",
           "pendingCount": 0,
-          "updatedAt": "2026-07-03T14:29:05.000Z",
-          "updatedBy": "seed",
-          "reason": "Seed inicial B1 (contexto estructurado)."
+          "updatedAt": "2026-07-06T19:18:15.000Z",
+          "updatedBy": "doctrina-v3",
+          "reason": "Reseed Ola 2: alineado a la doctrina canónica (Biblia v3)."
         }
       ]
     },
     {
       "id": "tabla-evolucion-cognitiva",
-      "title": "6.8 Evolución cognitiva (Setup → Maestría)",
-      "content": "Tabla operativa: define cada nivel, sus señales, la intervención típica y la métrica que lo mide. Las celdas con `[CONFIRMAR]` son supuestos hasta que Producto las confirme.",
+      "title": "6.8 Evolución cognitiva (Setup → Principalidad)",
+      "content": "Escala canónica de 5 niveles (doctrina §2): el seller no pasa por un funnel, sube de nivel. Transiciones válidas: pares adyacentes. Celdas [CONFIRMAR] = supuestos hasta que Producto las confirme.",
       "sortOrder": 9,
       "pendingCount": 0,
-      "updatedAt": "2026-07-03T14:29:05.000Z",
-      "updatedBy": "seed",
-      "version": 1,
+      "updatedAt": "2026-07-06T19:18:15.000Z",
+      "updatedBy": "doctrina-v3",
+      "version": 2,
       "versions": [
         {
-          "version": 1,
-          "title": "6.8 Evolución cognitiva (Setup → Maestría)",
-          "content": "Tabla operativa: define cada nivel, sus señales, la intervención típica y la métrica que lo mide. Las celdas con `[CONFIRMAR]` son supuestos hasta que Producto las confirme.",
+          "version": 2,
+          "title": "6.8 Evolución cognitiva (Setup → Principalidad)",
+          "content": "Escala canónica de 5 niveles (doctrina §2): el seller no pasa por un funnel, sube de nivel. Transiciones válidas: pares adyacentes. Celdas [CONFIRMAR] = supuestos hasta que Producto las confirme.",
           "table": {
             "columns": [
               "Nivel",
+              "Cree",
               "Definición",
-              "Señales",
+              "Señal observable",
               "Intervención típica",
-              "Métrica"
+              "GMV/mes"
             ],
             "rows": [
               [
                 "Setup",
-                "El seller completa la configuración mínima para poder operar (registro, tienda, catálogo).",
-                "Registro completado, tienda conectada, primer producto importado.",
-                "Reducir pasos y decisión; próximo paso explícito.",
-                "[CONFIRMAR: % setup completado / tiempo a setup]"
+                "\"¿Esto funciona?\"",
+                "Pre-cognitivo. Se registró y conectó tienda, aún sin resultado.",
+                "Registrado + tienda conectada, sin 1ª orden entregada",
+                "[CONFIRMAR: intervención típica Setup]",
+                "—"
               ],
               [
                 "Aha",
-                "El seller experimenta el valor por primera vez (primera orden útil).",
-                "Primera orden creada y despachada sin soporte.",
-                "Acompañamiento en el momento crítico; eliminar incertidumbre de la primera orden.",
-                "[CONFIRMAR: tasa de primera orden / TTV]"
+                "\"No me estafaron\"",
+                "El riesgo percibido cayó a cero: cobró por primera vez.",
+                "1ª orden entregada (cobró)",
+                "[CONFIRMAR: intervención típica Aha]",
+                "~$25"
               ],
               [
-                "Hábito",
-                "El seller repite el comportamiento de valor de forma recurrente (2ª orden y siguientes).",
-                "2º envío dentro de las 72h; frecuencia semanal de órdenes.",
-                "Prompts de recurrencia; reducir fricción del flujo repetido.",
-                "[CONFIRMAR: retención de órdenes semana 2-4]"
+                "Habit",
+                "\"Puedo repetirlo\"",
+                "El éxito dejó de sentirse suerte; es patrón reproducible.",
+                "5 entregas en 30 días (repite en ventana corta)",
+                "[CONFIRMAR: intervención típica Habit]",
+                "~$125"
               ],
               [
-                "Maestría",
-                "El seller optimiza su operación y expande (multi-producto, escala, márgenes).",
-                "Uso de features avanzadas; crecimiento de volumen sostenido.",
-                "Herramientas de escala; visibilidad de márgenes y desempeño.",
-                "[CONFIRMAR: % sellers en escala / LTV]"
+                "Engaged",
+                "\"Soy parte de algo\"",
+                "Cambió la identidad: de \"uso Dropi\" a \"soy seller\". Entró a la tribu.",
+                "10 entregas en 90 días + feature de tribu activa (ChateaPro / Dropi Card)",
+                "[CONFIRMAR: intervención típica Engaged]",
+                "~$250"
+              ],
+              [
+                "Principalidad",
+                "\"Dropi es mi sistema operativo\"",
+                "Dejó de operar y gobierna: piensa en sistema, diversifica, negocia.",
+                "Power seller, alto volumen sostenido",
+                "[CONFIRMAR: intervención típica Principalidad]",
+                "~$1.000"
               ]
             ]
           },
-          "pendingCount": 0,
-          "updatedAt": "2026-07-03T14:29:05.000Z",
-          "updatedBy": "seed",
-          "reason": "Seed inicial B1 (contexto estructurado)."
+          "pendingCount": 5,
+          "updatedAt": "2026-07-06T19:18:15.000Z",
+          "updatedBy": "doctrina-v3",
+          "reason": "Reseed Ola 2: alineado a la doctrina canónica (Biblia v3)."
         }
       ],
       "table": {
         "columns": [
           "Nivel",
+          "Cree",
           "Definición",
-          "Señales",
+          "Señal observable",
           "Intervención típica",
-          "Métrica"
+          "GMV/mes"
         ],
         "rows": [
           [
             "Setup",
-            "El seller completa la configuración mínima para poder operar (registro, tienda, catálogo).",
-            "Registro completado, tienda conectada, primer producto importado.",
-            "Reducir pasos y decisión; próximo paso explícito.",
-            "[CONFIRMAR: % setup completado / tiempo a setup]"
+            "\"¿Esto funciona?\"",
+            "Pre-cognitivo. Se registró y conectó tienda, aún sin resultado.",
+            "Registrado + tienda conectada, sin 1ª orden entregada",
+            "[CONFIRMAR: intervención típica Setup]",
+            "—"
           ],
           [
             "Aha",
-            "El seller experimenta el valor por primera vez (primera orden útil).",
-            "Primera orden creada y despachada sin soporte.",
-            "Acompañamiento en el momento crítico; eliminar incertidumbre de la primera orden.",
-            "[CONFIRMAR: tasa de primera orden / TTV]"
+            "\"No me estafaron\"",
+            "El riesgo percibido cayó a cero: cobró por primera vez.",
+            "1ª orden entregada (cobró)",
+            "[CONFIRMAR: intervención típica Aha]",
+            "~$25"
           ],
           [
-            "Hábito",
-            "El seller repite el comportamiento de valor de forma recurrente (2ª orden y siguientes).",
-            "2º envío dentro de las 72h; frecuencia semanal de órdenes.",
-            "Prompts de recurrencia; reducir fricción del flujo repetido.",
-            "[CONFIRMAR: retención de órdenes semana 2-4]"
+            "Habit",
+            "\"Puedo repetirlo\"",
+            "El éxito dejó de sentirse suerte; es patrón reproducible.",
+            "5 entregas en 30 días (repite en ventana corta)",
+            "[CONFIRMAR: intervención típica Habit]",
+            "~$125"
           ],
           [
-            "Maestría",
-            "El seller optimiza su operación y expande (multi-producto, escala, márgenes).",
-            "Uso de features avanzadas; crecimiento de volumen sostenido.",
-            "Herramientas de escala; visibilidad de márgenes y desempeño.",
-            "[CONFIRMAR: % sellers en escala / LTV]"
+            "Engaged",
+            "\"Soy parte de algo\"",
+            "Cambió la identidad: de \"uso Dropi\" a \"soy seller\". Entró a la tribu.",
+            "10 entregas en 90 días + feature de tribu activa (ChateaPro / Dropi Card)",
+            "[CONFIRMAR: intervención típica Engaged]",
+            "~$250"
+          ],
+          [
+            "Principalidad",
+            "\"Dropi es mi sistema operativo\"",
+            "Dejó de operar y gobierna: piensa en sistema, diversifica, negocia.",
+            "Power seller, alto volumen sostenido",
+            "[CONFIRMAR: intervención típica Principalidad]",
+            "~$1.000"
           ]
         ]
       }

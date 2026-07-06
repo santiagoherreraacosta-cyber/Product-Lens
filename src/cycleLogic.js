@@ -1,6 +1,7 @@
 // Core cycle logic extracted from server.js so it can be unit-tested in
 // isolation (B7 — closes the "untested core logic" debt). These functions are
 // pure: no I/O, no globals.
+import { normalizeSubPerfil, normalizeTransition, normalizeCausa } from "./doctrina.js";
 
 // Recursively merges `source` into `target`. Plain objects merge key-by-key;
 // arrays and primitives replace. This is what fixes the brief-wipe bug: a
@@ -34,7 +35,15 @@ export function looksLikeFeature(title) {
 }
 
 export const BRIEF_FIELD_KEYS = ["behavior_statement", "evidencia_primaria", "segunda_fuente", "hipotesis", "senal_cuantitativa"];
-export const CYCLE_TOP_KEYS = ["sub_perfil", "transicion", "causa"];
+export const CYCLE_TOP_KEYS = ["sub_perfil", "transicion", "causa", "segmento_objetivo"];
+
+// Enums de doctrina: lo que el LLM sugiere para estos campos se normaliza a
+// keys canónicas; un valor fuera de doctrina se descarta (no se guarda basura).
+const TOP_KEY_NORMALIZERS = {
+  sub_perfil: normalizeSubPerfil,
+  transicion: normalizeTransition,
+  causa: normalizeCausa,
+};
 
 // Applies LLM-extracted brief updates without ever overriding user-confirmed
 // fields or existing top-level cycle values. Returns { cycle, changed }.
@@ -51,10 +60,12 @@ export function applyBriefUpdates(cycle, updates) {
   }
   const patch = { brief };
   for (const key of CYCLE_TOP_KEYS) {
-    const val = updates[key];
-    if (typeof val !== "string" || !val.trim()) continue;
+    const raw = updates[key];
+    if (typeof raw !== "string" || !raw.trim()) continue;
     if (cycle[key]) continue; // don't override an existing top-level value
-    patch[key] = val.trim();
+    const val = TOP_KEY_NORMALIZERS[key] ? TOP_KEY_NORMALIZERS[key](raw) : raw.trim();
+    if (!val) continue; // fuera de doctrina → se descarta
+    patch[key] = val;
     if (key === "causa") patch.causa_source = "llm_suggested";
     changed.push(key);
   }

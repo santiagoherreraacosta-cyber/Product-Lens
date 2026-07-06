@@ -1,6 +1,16 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
 import { markdownToPdfHtml } from "./src/exportService.js";
-import { FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS } from "./src/doctrina.js";
+import { FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel } from "./src/doctrina.js";
+
+// <option> lists derived from the doctrine enums (2B).
+const subPerfilOptions = (cur = "") =>
+  ['<option value="">Sub-perfil…</option>']
+    .concat(SUB_PERFILES.filter((s) => s !== "sin_clasificar").map((s) => `<option value="${s}"${s === cur ? " selected" : ""}>${SUB_PERFIL_LABEL[s]}</option>`))
+    .join("");
+const transitionOptions = (cur = "") =>
+  ['<option value="">Transición…</option>']
+    .concat(TRANSITIONS.map((t) => `<option value="${t}"${t === cur ? " selected" : ""}>${transitionLabel(t)}</option>`))
+    .join("");
 
 // --- Constants ---
 const THEME_KEY = "dropi-workspace-theme";
@@ -278,9 +288,11 @@ function openNewCycleModal() {
       <label class="nc-label" for="ncBehavior">¿Qué seller, haciendo qué, no está haciendo qué?</label>
       <textarea id="ncBehavior" class="nc-textarea" rows="3" placeholder="El Rebuscador Digital no configura su 2º envío dentro de las 72h tras el primer pedido…"></textarea>
       <div class="nc-grid">
-        <div><label class="nc-label" for="ncSub">Sub-perfil (opcional)</label><input id="ncSub" class="nc-input" placeholder="Rebuscador Digital" /></div>
-        <div><label class="nc-label" for="ncTrans">Transición (opcional)</label><input id="ncTrans" class="nc-input" placeholder="Setup_Aha" /></div>
+        <div><label class="nc-label" for="ncSub">Sub-perfil (opcional)</label><select id="ncSub" class="nc-input">${subPerfilOptions()}</select></div>
+        <div><label class="nc-label" for="ncTrans">Transición (opcional)</label><select id="ncTrans" class="nc-input">${transitionOptions()}</select></div>
       </div>
+      <label class="nc-label" for="ncSegment">Segmento (cohorte conductual, opcional)</label>
+      <input id="ncSegment" class="nc-input" placeholder="ej. sellers inactivos 30d / registrados sin 1ª orden en 7d" />
       <p id="ncError" class="login-error" hidden></p>
       <div class="export-modal-actions">
         <button type="button" class="secondary-action" data-nc="cancel">Cancelar</button>
@@ -294,8 +306,9 @@ function openNewCycleModal() {
     if (!behavior) { const err = q("#ncError"); if (err) { err.textContent = "Describe el comportamiento para empezar."; err.hidden = false; } return; }
     overlay.close();
     await createCycle(behavior, {
-      sub_perfil: (q("#ncSub")?.value ?? "").trim().replace(/\s+/g, "_") || null,
-      transicion: (q("#ncTrans")?.value ?? "").trim() || null,
+      sub_perfil: q("#ncSub")?.value || null,
+      transicion: q("#ncTrans")?.value || null,
+      segmento_objetivo: (q("#ncSegment")?.value ?? "").trim() || null,
     });
   };
   q('[data-nc="create"]')?.addEventListener("click", submit);
@@ -313,6 +326,7 @@ async function createCycle(title, extra = {}) {
         title,
         sub_perfil: extra.sub_perfil || null,
         transicion: extra.transicion || null,
+        segmento_objetivo: extra.segmento_objetivo || null,
         phases: structuredClone(phaseSeed),
         activePhase: "F0",
         riskAccepted: false,
@@ -370,13 +384,17 @@ async function updateCycle(patch) {
 let cyclesFilter = "all";
 
 // Cognitive ladder for the transition path on cards (A3).
-const COG_LEVELS = COGNITIVE_LEVELS.map((l) => COGNITIVE_LABEL[l]);
+// Renders the 5-level cognitive scale highlighting the cycle's transition.
+// Accepts canonical keys ("aha_habit") and legacy aliases ("Setup_Aha").
 function cognitivePathHtml(transicion) {
   if (!transicion) return "";
-  const parts = String(transicion).split(/[_→-]/).map((s) => s.trim());
+  const LEGACY = { habito: "habit" };
+  const parts = String(transicion).toLowerCase().split(/[_→-]/)
+    .map((s) => s.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+    .map((s) => LEGACY[s] ?? s);
   const from = parts[0], to = parts[1];
-  return `<div class="cognitive-path">${COG_LEVELS.map((lvl) =>
-    (lvl === from || lvl === to) ? `<strong>${escapeHtml(lvl)}</strong>` : `<span class="muted-step">${escapeHtml(lvl)}</span>`
+  return `<div class="cognitive-path">${COGNITIVE_LEVELS.map((lvl) =>
+    (lvl === from || lvl === to) ? `<strong>${escapeHtml(COGNITIVE_LABEL[lvl])}</strong>` : `<span class="muted-step">${escapeHtml(COGNITIVE_LABEL[lvl])}</span>`
   ).join('<span>›</span>')}</div>`;
 }
 
@@ -388,7 +406,7 @@ function cycleCardHtml(cycle) {
   const since = new Date(cycle.updatedAt ?? cycle.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
   const causeLabel = cycle.causa === "M" ? "Motivación" : cycle.causa === "A" ? "Ability" : cycle.causa === "P" ? "Prompt" : null;
   const chips = [
-    cycle.sub_perfil ? `<span class="chip">${escapeHtml(cycle.sub_perfil.replace(/_/g, " "))}</span>` : "",
+    cycle.sub_perfil ? `<span class="chip">${escapeHtml(subPerfilLabel(cycle.sub_perfil))}</span>` : "",
     causeLabel ? `<span class="chip cause-chip ${escapeHtml(cycle.causa)}">${escapeHtml(causeLabel)}</span>` : "",
   ].join("");
   const statusPill = cycle.estado === "cerrado"
@@ -640,7 +658,7 @@ function populateLibraryFacets() {
     if (!sel) return;
     const opts = [`<option value="">${placeholder}</option>`].concat(
       values.map((v) => {
-        const label = arrow ? v.replace(/_/g, "→") : v.replace(/_/g, " ");
+        const label = arrow ? transitionLabel(v) : subPerfilLabel(v);
         return `<option value="${escapeHtml(v)}"${v === cur ? " selected" : ""}>${escapeHtml(label)}</option>`;
       })
     );
@@ -673,8 +691,8 @@ function renderPatternsList(list = patterns) {
       const since = p.createdAt ? new Date(p.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
       const chips = [
         p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabelEs(p.causa))}</span>` : "",
-        p.sub_perfil ? `<span class="chip">${escapeHtml(p.sub_perfil.replace(/_/g, " "))}</span>` : "",
-        p.transicion ? `<span class="chip">${escapeHtml(p.transicion.replace(/_/g, "→"))}</span>` : "",
+        p.sub_perfil ? `<span class="chip">${escapeHtml(subPerfilLabel(p.sub_perfil))}</span>` : "",
+        p.transicion ? `<span class="chip">${escapeHtml(transitionLabel(p.transicion))}</span>` : "",
       ].join("");
       return `
         <article class="pattern-card" data-pattern-open="${escapeHtml(p.id)}" role="button" tabindex="0">
@@ -712,8 +730,8 @@ function openPatternDetail(id) {
       <h2 class="pd-title">${escapeHtml(p.nombre ?? "Sin nombre")}</h2>
       <div class="chips">
         ${p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabelEs(p.causa))}</span>` : ""}
-        ${p.sub_perfil ? `<span class="chip">${escapeHtml(p.sub_perfil.replace(/_/g, " "))}</span>` : ""}
-        ${p.transicion ? `<span class="chip">${escapeHtml(p.transicion.replace(/_/g, "→"))}</span>` : ""}
+        ${p.sub_perfil ? `<span class="chip">${escapeHtml(subPerfilLabel(p.sub_perfil))}</span>` : ""}
+        ${p.transicion ? `<span class="chip">${escapeHtml(transitionLabel(p.transicion))}</span>` : ""}
       </div>
       ${row("Qué aprendimos", p.aprendizaje)}
       ${row("Delta de métrica", p.delta_metrica)}
@@ -1345,8 +1363,9 @@ function makeFieldEditable(el, cyclePath) {
     const save = async () => {
       const val = input.value.trim();
       const patch = {};
-      if (cyclePath === "sub_perfil") {
-        patch.sub_perfil = val || null;
+      if (cyclePath === "sub_perfil" || cyclePath === "segmento_objetivo") {
+        // Top-level scalar cycle fields (server normalizes sub_perfil to enum).
+        patch[cyclePath] = val || null;
       } else {
         setNestedPath(patch, cyclePath, { value: val, confirmed: !!val });
       }
@@ -1394,6 +1413,7 @@ const BRIEF_FIELD_TO_EL = {
   "sub_perfil": "briefSubProfile",
   "transicion": "briefCogLevel",
   "causa": "briefCause",
+  "segmento_objetivo": "briefSegment",
 };
 function flashBriefFields(changed) {
   if (!Array.isArray(changed) || !changed.length) return;
@@ -1419,8 +1439,10 @@ function loadBriefFromCycle(cycle) {
   const briefEvidence = document.querySelector("#briefEvidence");
 
   setField(briefBehavior, b.behavior_statement?.value ?? null);
-  setField(briefSubProfile, cycle?.sub_perfil?.replace(/_/g, " ") ?? null);
-  setField(briefCogLevel, b.nivel_cognitivo?.value ?? (cycle?.transicion ? cycle.transicion.replace(/_/g, "→") : null));
+  setField(briefSubProfile, cycle?.sub_perfil ? subPerfilLabel(cycle.sub_perfil) : null);
+  setField(briefCogLevel, b.nivel_cognitivo?.value ?? (cycle?.transicion ? transitionLabel(cycle.transicion) : null));
+  const briefSegment = document.querySelector("#briefSegment");
+  setField(briefSegment, cycle?.segmento_objetivo ?? null);
   setField(briefEvidence, b.evidencia_primaria?.value ?? null);
   setField(secondSource, b.segunda_fuente?.value ?? null);
   setField(hypothesisField, b.hipotesis?.value ?? b.intervencion?.value ?? null);
@@ -1454,6 +1476,7 @@ function loadBriefFromCycle(cycle) {
   // Make brief fields inline-editable
   makeFieldEditable(briefBehavior, "brief.behavior_statement");
   makeFieldEditable(briefSubProfile, "sub_perfil");
+  makeFieldEditable(briefSegment, "segmento_objetivo");
   makeFieldEditable(briefCogLevel, "brief.nivel_cognitivo");
   makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
   makeFieldEditable(secondSource, "brief.segunda_fuente");
