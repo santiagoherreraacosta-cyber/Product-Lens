@@ -142,10 +142,7 @@ function showApp() {
   workspace.hidden = false;
   const overlay = document.getElementById("appLoadingOverlay");
   if (overlay) overlay.hidden = false;
-  const roleLabel = currentUser?.role ? ` · ${currentUser.role}` : "";
-  userEmailEl.textContent = (currentUser?.email ?? "") + roleLabel;
-  // B7 · viewer is read-only: hide write actions via a scope class (see CSS).
-  workspace.classList.toggle("role-viewer", currentUser?.role === "viewer");
+  userEmailEl.textContent = currentUser?.email ?? "";
 }
 
 async function checkAuth() {
@@ -204,13 +201,6 @@ function logout() {
   patterns = [];
   contextLoaded = false;
   showLogin();
-}
-
-// B7 · viewer is read-only. Write actions no-op with a hint.
-function isViewer() { return currentUser?.role === "viewer"; }
-function blockIfViewer() {
-  if (isViewer()) { showToast("Tu rol es de solo lectura (viewer)."); return true; }
-  return false;
 }
 
 // --- Init ---
@@ -317,7 +307,6 @@ function openNewCycleModal() {
 }
 
 async function createCycle(title, extra = {}) {
-  if (blockIfViewer()) return;
   try {
     const res = await fetch("/api/cycles", {
       method: "POST",
@@ -548,7 +537,6 @@ function renderActiveCycle() {
 }
 
 async function reusePattern(patternId) {
-  if (blockIfViewer()) return;
   try {
     const res = await apiFetch(`/api/patterns/${patternId}/reuse`, { method: "POST", headers: authHeaders() });
     if (!res.ok) return;
@@ -571,7 +559,6 @@ async function reusePattern(patternId) {
 }
 
 async function closeCycle() {
-  if (blockIfViewer()) return;
   const closureDecision = document.getElementById("closureDecision");
   const closureLearning = document.getElementById("closureLearning");
   const closureDelta = document.getElementById("closureDelta");
@@ -812,7 +799,7 @@ async function loadContextDocuments() {
 
 // B1 · editable table renderer for `kind: table` docs (cognitive evolution).
 function contextTableHtml(doc) {
-  const canEdit = currentUser?.role === "admin";
+  const canEdit = true; // herramienta de un solo usuario
   const head = doc.table.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("");
   const body = doc.table.rows.map((row, ri) => `
     <tr>${row.map((cell, ci) => {
@@ -848,7 +835,7 @@ function renderContextDocuments(data) {
         ${doc.table
           ? `<p class="ct-intro">${escapeHtml(doc.content)}</p>${contextTableHtml(doc)}`
           : `<textarea aria-label="Editar ${escapeHtml(doc.title)}">${escapeHtml(doc.content)}</textarea>`}
-        <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${escapeHtml(new Date(doc.updatedAt).toLocaleString("es-CO"))}</span><button class="secondary-action" type="button" data-save-context ${currentUser?.role !== "admin" ? 'disabled title="Solo admins pueden guardar"' : ""}>Guardar${currentUser?.role === "admin" ? " ✓" : " (solo admins)"}</button></footer>
+        <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${escapeHtml(new Date(doc.updatedAt).toLocaleString("es-CO"))}</span><button class="secondary-action" type="button" data-save-context>Guardar ✓</button></footer>
       </section>`)
     .join("");
   contextDocuments.querySelectorAll("[data-save-context]").forEach((button) => {
@@ -1118,7 +1105,6 @@ async function applyChatResult(data) {
 }
 
 async function sendMessage() {
-  if (blockIfViewer()) return;
   const text = messageInput.value.trim();
   if (!text) return;
   // Closed/discarded cycles are read-only
@@ -1238,7 +1224,6 @@ function addAiNote(content) {
 // blocked GateCard; withRisk=true → the server records the risk and advances.
 async function advancePhase(withRisk = false) {
   if (!currentCycleId) return;
-  if (blockIfViewer()) return;
   try {
     const res = await apiFetch(`/api/cycles/${currentCycleId}/advance`, {
       method: "POST",
@@ -1773,7 +1758,7 @@ document.querySelector("#briefCauseSelector")?.addEventListener("click", async (
 // 2D - metric type (outcome vs actividad) toggle on the Experiment Card
 document.querySelector("#metricTypeToggle")?.addEventListener("click", async (e) => {
   const btn = e.target.closest(".mt-btn");
-  if (!btn || !currentCycleId || blockIfViewer()) return;
+  if (!btn || !currentCycleId) return;
   const mtype = btn.dataset.mtype;
   document.querySelectorAll("#metricTypeToggle .mt-btn").forEach((b) => b.classList.toggle("active", b === btn));
   const mWarn = document.getElementById("metricTypeWarn");

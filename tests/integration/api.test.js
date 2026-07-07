@@ -23,7 +23,7 @@ function signToken(payload) {
 }
 
 const adminToken = signToken({ sub: "u1", email: "admin@test.co", role: "admin" });
-const pmToken = signToken({ sub: "u2", email: "pm@test.co", role: "pm" });
+const userToken = signToken({ sub: "u1", email: "admin@test.co", role: "admin" });
 
 // Simple test server that mimics the real server's /api/cycles endpoint
 function createTestServer() {
@@ -79,7 +79,7 @@ after(async () => {
 });
 
 test("GET /api/cycles returns empty array initially", async () => {
-  const res = await fetch(`${BASE}/api/cycles`, { headers: { Authorization: `Bearer ${pmToken}` } });
+  const res = await fetch(`${BASE}/api/cycles`, { headers: { Authorization: `Bearer ${userToken}` } });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.ok(Array.isArray(body));
@@ -88,7 +88,7 @@ test("GET /api/cycles returns empty array initially", async () => {
 test("POST /api/cycles creates a cycle", async () => {
   const res = await fetch(`${BASE}/api/cycles`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${pmToken}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${userToken}` },
     body: JSON.stringify({ title: "Test Cycle", phase: "F0" }),
   });
   assert.equal(res.status, 201);
@@ -100,7 +100,7 @@ test("POST /api/cycles creates a cycle", async () => {
 test("POST /api/cycles without title returns 400", async () => {
   const res = await fetch(`${BASE}/api/cycles`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${pmToken}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${userToken}` },
     body: JSON.stringify({ phase: "F0" }),
   });
   assert.equal(res.status, 400);

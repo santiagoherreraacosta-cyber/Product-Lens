@@ -311,10 +311,9 @@ function makeUser(id, emailEnv, emailDefault, passwordEnv, role) {
   return { id, email: process.env[emailEnv] || emailDefault, passwordHash: hashPassword(password), role };
 }
 
+// Herramienta de un solo usuario: un login que hace todo (rol "admin").
 const USERS = [
   makeUser("u1", "ADMIN_EMAIL", "admin@dropi.co", "ADMIN_PASSWORD", "admin"),
-  makeUser("u2", "PM_EMAIL", "pm@dropi.co", "PM_PASSWORD", "pm"),
-  makeUser("u3", "VIEWER_EMAIL", "viewer@dropi.co", "VIEWER_PASSWORD", "viewer"),
 ].filter(Boolean);
 
 function findUser(email, password) {
@@ -325,29 +324,32 @@ function findUser(email, password) {
 
 // --- Route permissions ---
 // null = public (no token required); array = allowed roles; undefined = default-deny
+// Herramienta de un solo usuario: null = público; AUTH = requiere sesión válida
+// (el único rol es "admin", que hace todo). Sin escalas de rol.
+const AUTH = ["admin"];
 const routePermissions = {
-  "GET /api/auth/me": ["admin", "pm", "viewer"],
+  "GET /api/auth/me": AUTH,
   "POST /api/auth/login": null,
-  // Context: public read; write requires admin JWT
+  // Context: lectura pública; escritura requiere sesión
   "GET /api/context": null,
-  "PATCH /api/context": ["admin"],
-  // Chat: public (rate limiting still applies)
+  "PATCH /api/context": AUTH,
+  // Chat: público (aplica rate limiting)
   "POST /api/chat": null,
   "POST /api/chat/stream": null,
-  // Health check: public
+  // Health check: público
   "GET /health": null,
-  "GET /api/cycles": ["admin", "pm", "viewer"],
-  "POST /api/cycles": ["admin", "pm"],
-  "PATCH /api/cycles": ["admin", "pm"],
-  "PUT /api/cycles": ["admin", "pm"],
-  "DELETE /api/cycles": ["admin", "pm"],
-  "GET /api/patterns": ["admin", "pm", "viewer"],
-  "POST /api/patterns": ["admin", "pm"],
-  "PATCH /api/patterns": ["admin", "pm"],
-  "POST /api/patterns/reuse": ["admin", "pm"],
-  "GET /api/audit-events": ["admin"],
-  "GET /api/analytics": ["admin", "pm"],
-  "POST /api/analytics/event": ["admin", "pm", "viewer"],
+  "GET /api/cycles": AUTH,
+  "POST /api/cycles": AUTH,
+  "PATCH /api/cycles": AUTH,
+  "PUT /api/cycles": AUTH,
+  "DELETE /api/cycles": AUTH,
+  "GET /api/patterns": AUTH,
+  "POST /api/patterns": AUTH,
+  "PATCH /api/patterns": AUTH,
+  "POST /api/patterns/reuse": AUTH,
+  "GET /api/audit-events": AUTH,
+  "GET /api/analytics": AUTH,
+  "POST /api/analytics/event": AUTH,
 };
 
 function getRouteKey(method, pathname) {

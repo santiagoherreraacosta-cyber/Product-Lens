@@ -8,8 +8,8 @@
 
 ## Authorization
 
-- Role-based: `admin`, `pm`, `viewer`
-- Route-level permission table in `server.js` → `routePermissions`
+- Single-user tool: one authenticated user (rol `admin`) que hace todo. Sin escalas de rol.
+- Route-level permission table in `server.js` → `routePermissions` (`null` = público, `AUTH` = requiere sesión)
 - Audit log captures all mutating actions with actor identity
 
 ## Input Validation
