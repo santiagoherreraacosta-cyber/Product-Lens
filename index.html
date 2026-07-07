@@ -303,7 +303,13 @@
           <div class="brief-block"><p class="section-label">Hipótesis</p><p id="experimentHypothesis" class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
           <div class="brief-block"><p class="section-label">Variable / intervención</p><p id="experimentVariable" class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
           <div class="brief-grid">
-            <div class="brief-block"><p class="section-label">Métrica primaria</p><p id="experimentMetric" class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
+            <div class="brief-block"><p class="section-label">Métrica primaria</p><p id="experimentMetric" class="confirm-field"><strong>[CONFIRMAR]</strong></p>
+              <div class="metric-type" id="metricTypeToggle" role="radiogroup" aria-label="Tipo de métrica">
+                <button type="button" class="mt-btn" data-mtype="outcome" title="Mueve el resultado del seller (activación, recompra, GMV)">Outcome</button>
+                <button type="button" class="mt-btn" data-mtype="actividad" title="Mide uso/adopción, no resultado">Actividad</button>
+              </div>
+              <p id="metricTypeWarn" class="metric-warn" hidden>⚠ Mide actividad, no outcome — el éxito de un experimento no es adopción.</p>
+            </div>
             <div class="brief-block"><p class="section-label">Criterio de stop</p><p id="experimentStop" class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
           </div>
           <div class="brief-grid">

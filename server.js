@@ -432,6 +432,23 @@ function securityHeaders(res) {
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
 }
 
+
+// 2D - no-peeking: parsea la duracion declarada ("14 dias", "14d", "2 semanas")
+// a milisegundos; null si no es parseable (entonces no se puede evaluar peeking).
+function parseDurationMs(duracion) {
+  const raw = typeof duracion === "string" ? duracion : duracion?.value;
+  if (typeof raw !== "string") return null;
+  const m = raw.toLowerCase().match(/(\d+(?:[.,]\d+)?)\s*(dias?|d\b|semanas?|sem\b|horas?|h\b)?/);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const unit = m[2] ?? "d";
+  const DAY = 24 * 60 * 60 * 1000;
+  if (unit.startsWith("sem")) return n * 7 * DAY;
+  if (unit.startsWith("h")) return n * 60 * 60 * 1000;
+  return n * DAY;
+}
+
 // --- Request handler ---
 async function handle(req, res) {
   const origin = req.headers["origin"] || "";
@@ -585,6 +602,11 @@ async function handle(req, res) {
         return p;
       });
       const updated = { ...cycle, fase_actual: next, activePhase: next, phases, riskAccepted, updatedAt: now, last_activity_at: now };
+      // 2D - no-peeking: al entrar a F4 (Despliegue) se marca el inicio del
+      // experimento; contra esto se mide un cierre temprano.
+      if (next === "F4" && !updated.experiment?.started_at) {
+        updated.experiment = { ...(updated.experiment ?? {}), started_at: now };
+      }
       cycles.set(cycleId, updated);
       void persistCycles();
       logAudit(currentUser?.email, missing.length && withRisk ? "gate_skipped_with_risk" : "gate_passed", cycleId, { from: current, to: next });
@@ -592,7 +614,7 @@ async function handle(req, res) {
     }
 
     if (req.method === "POST" && rest === "close") {
-      const cycle = cycles.get(cycleId);
+      let cycle = cycles.get(cycleId);
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
       // Iteration loop (Fase 2): closing with "iterando" does NOT close the
@@ -623,6 +645,19 @@ async function handle(req, res) {
       }
       const now = new Date().toISOString();
       const decision = String(body.decision ?? body.resultado_cierre ?? "").trim() || null;
+      // 2D - no-peeking: cerrar en F4 antes de que corra la duracion declarada
+      // = leer el experimento antes de tiempo. Advertencia + risk tag, no bloqueo.
+      let peeking = false;
+      const currentPhase = cycle.fase_actual ?? cycle.activePhase;
+      const durMs = parseDurationMs(cycle.experiment?.duracion);
+      const startedAt = cycle.experiment?.started_at ? Date.parse(cycle.experiment.started_at) : null;
+      if (currentPhase === "F4" && durMs && startedAt && (Date.now() - startedAt) < durMs) {
+        const elapsedD = Math.floor((Date.now() - startedAt) / 86400000);
+        const totalD = Math.round(durMs / 86400000);
+        peeking = true;
+        cycle = acceptRisk(cycle, "F4", `Cierre temprano (peeking): experimento leido en el dia ${elapsedD} de ${totalD} declarados. La decision puede estar contaminada por ruido.`, { id: currentUser?.sub, name: currentUser?.email });
+        logAudit(currentUser?.email, "experiment_peeked", cycleId, { elapsedDays: elapsedD, declaredDays: totalD });
+      }
       // Decisión obligatoria para cerrar (F5): si falta, no bloquea pero deja
       // [CONFIRMAR] + un tag de riesgo persistente (decisión 5 · doctrina §4).
       const baseCycle = decision
@@ -674,7 +709,7 @@ async function handle(req, res) {
       void persistPatterns();
       logAudit(currentUser?.email, "cycle_closed", cycleId, { patternId });
       logAudit(currentUser?.email, "pattern_created", patternId, { type: newPattern.tipo, cause: newPattern.causa });
-      return json(res, { cycle: closedCycle, pattern: newPattern });
+      return json(res, { cycle: closedCycle, pattern: newPattern, peeking });
     }
 
     if (req.method === "GET" && !rest) {

@@ -22,6 +22,7 @@ const GATE_REQUIREMENTS = {
   ],
   F3: [
     { key: "metric", message: "Falta la métrica de éxito.", isMet: hasMetric },
+    { key: "outcomeMetric", message: "Marca la métrica primaria como outcome (no actividad) — el éxito no es adopción.", isMet: hasOutcomeMetric },
     { key: "sizeAndDuration", message: "Falta tamaño de muestra / duración.", isMet: hasSizeAndDuration },
     { key: "stopCriteria", message: "Falta el criterio de stop.", isMet: hasStopCriteria },
   ],
@@ -124,6 +125,12 @@ function hasMetric(cycle) {
 function hasSizeAndDuration(cycle) {
   if (hasText(cycle.sizeAndDuration) || (hasText(cycle.size) && hasText(cycle.duration))) return true;
   return hasText(cycle.experiment?.tamano_muestra?.value) && hasText(cycle.experiment?.duracion?.value);
+}
+
+// 2D - honestidad: la métrica primaria debe declararse como outcome (no
+// actividad). Doctrina §4 gate F3. Sin declarar → pendiente (asesora).
+function hasOutcomeMetric(cycle) {
+  return cycle.experiment?.metrica_tipo === "outcome" || cycle.metricType === "outcome";
 }
 
 function hasStopCriteria(cycle) {
