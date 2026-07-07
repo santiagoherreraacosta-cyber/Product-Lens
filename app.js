@@ -562,6 +562,7 @@ async function reusePattern(patternId) {
     renderStepper();
     renderBriefState();
     renderMessages([]);
+    renderReuseBanner(newCycle);
     addAiNote(`Reutilizando patrón: "${escapeHtml(newCycle.title)}". Confirma el contexto y ajusta la hipótesis antes de avanzar.`);
     setView("workspace");
   } catch {
@@ -604,7 +605,8 @@ async function closeCycle() {
       return;
     }
     const data = await res.json();
-    const { cycle, pattern, iterated } = data;
+    const { cycle, pattern, iterated, peeking } = data;
+    if (peeking) showToast("⚠ Cierre temprano (peeking): leíste el experimento antes del criterio de stop. Quedó registrado como riesgo.", true);
     cycles = cycles.map((c) => (c.id === cycle.id ? cycle : c));
     if (iterated) {
       // Iteration loop: cycle went back to F1 instead of closing.
@@ -1060,6 +1062,7 @@ function loadMessages(cycleId) {
   const cycle = cycles.find((c) => c.id === cycleId);
   const msgs = cycle?.messages ?? [];
   renderMessages(msgs);
+  renderReuseBanner(cycle);
 }
 
 function renderMessages(msgs) {
@@ -1287,6 +1290,19 @@ function removeGateCard() {
   messageStream.querySelector(".gate-card")?.remove();
 }
 
+// 2C - banner when the cycle was seeded from a library pattern (reuse flywheel).
+function renderReuseBanner(cycle) {
+  if (!cycle?.reusedFromPattern) return;
+  const inner = messageStream.querySelector(".stream-inner") || messageStream;
+  if (inner.querySelector(".reuse-banner")) return;
+  const pat = patterns.find((p) => p.id === cycle.reusedFromPattern);
+  const name = pat?.nombre ?? "patrón de la Biblioteca";
+  inner.insertAdjacentHTML(
+    "afterbegin",
+    `<div class="reuse-banner">🔁 Sembrado desde el patrón: <strong>${escapeHtml(name)}</strong> — confirma contexto e hipótesis antes de avanzar.</div>`
+  );
+}
+
 // Iteration loop banner (purple) shown when a cycle loops back to F1.
 function renderIterationBanner(count) {
   const inner = messageStream.querySelector(".stream-inner") || messageStream;
@@ -1472,6 +1488,12 @@ function loadBriefFromCycle(cycle) {
   const trackVal = Array.isArray(exp.tracking_eventos) && exp.tracking_eventos.length
     ? exp.tracking_eventos.join(", ") : expStr(exp.tracking_eventos);
   setField(expTracking, trackVal);
+
+  // 2D - honestidad: estado del toggle outcome/actividad + advertencia.
+  const mType = exp.metrica_tipo ?? null;
+  document.querySelectorAll("#metricTypeToggle .mt-btn").forEach((b) => b.classList.toggle("active", b.dataset.mtype === mType));
+  const mWarn = document.getElementById("metricTypeWarn");
+  if (mWarn) mWarn.hidden = mType !== "actividad";
 
   // Make brief fields inline-editable
   makeFieldEditable(briefBehavior, "brief.behavior_statement");
@@ -1743,6 +1765,21 @@ document.querySelector("#briefCauseSelector")?.addEventListener("click", async (
   const cause = btn.dataset.cause;
   document.querySelectorAll(".bmap-btn").forEach((b) => b.classList.toggle("active", b === btn));
   const patch = { causa: cause, causa_source: "pm_confirmed", brief: { causa: { value: cause, confirmed: true } } };
+  cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+  await updateCycle(patch);
+  renderActiveCycle();
+});
+
+// 2D - metric type (outcome vs actividad) toggle on the Experiment Card
+document.querySelector("#metricTypeToggle")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".mt-btn");
+  if (!btn || !currentCycleId || blockIfViewer()) return;
+  const mtype = btn.dataset.mtype;
+  document.querySelectorAll("#metricTypeToggle .mt-btn").forEach((b) => b.classList.toggle("active", b === btn));
+  const mWarn = document.getElementById("metricTypeWarn");
+  if (mWarn) mWarn.hidden = mtype !== "actividad";
+  if (mtype === "actividad") showToast("Ojo: actividad ≠ outcome. El gate F3 lo marcará como pendiente.", true);
+  const patch = { experiment: { metrica_tipo: mtype } };
   cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
   await updateCycle(patch);
   renderActiveCycle();
