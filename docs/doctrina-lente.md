@@ -23,6 +23,8 @@
 | **P** | `timing` (momento equivocado) · `visibilidad` (existe pero no lo nota) · `ausencia` (no hay ningún trigger) |
 
 > Las "6 causas" del doc viejo (Motivación/Claridad/Confianza/Capacidad/Fricción/Incentivo) son un subconjunto de esto — y les faltaba P entero. Quedan absorbidas como sub-causas. No hay marco de 6; hay B=MAP con sub-causa.
+>
+> **Implementación:** `cycle.sub_causa` (opcional), cableada al tool de extracción del LLM y a un `<select>` dependiente de la causa en el panel del Brief. Se valida server-side que pertenezca al bucket de la causa; fuera del bucket → se descarta.
 
 ---
 

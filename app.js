@@ -1,6 +1,6 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
 import { markdownToPdfHtml } from "./src/exportService.js";
-import { FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel } from "./src/doctrina.js";
+import { FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL } from "./src/doctrina.js";
 
 // <option> lists derived from the doctrine enums (2B).
 const subPerfilOptions = (cur = "") =>
@@ -1452,6 +1452,7 @@ function loadBriefFromCycle(cycle) {
   // B=MAP selector sync
   const activeCause = cycle?.causa;
   document.querySelectorAll(".bmap-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.cause === activeCause));
+  renderSubCausa(cycle);
 
   // Experiment card — all fields
   const exp = cycle?.experiment ?? {};
@@ -1743,13 +1744,38 @@ themeToggle?.addEventListener("click", () => {
   applyTheme(next);
 });
 
+// Sub-causa (opcional): refina la causa; el <select> se puebla del bucket de
+// la causa confirmada. Doctrina §1 (secundaria, no maneja el filtro).
+function renderSubCausa(cycle) {
+  const row = document.getElementById("subCausaRow");
+  const sel = document.getElementById("briefSubCausa");
+  if (!row || !sel) return;
+  const causa = cycle?.causa;
+  if (!causa || !SUB_CAUSA[causa]) { row.hidden = true; return; }
+  row.hidden = false;
+  const cur = cycle?.sub_causa ?? "";
+  sel.innerHTML = ['<option value="">Sin refinar…</option>']
+    .concat(SUB_CAUSA[causa].map((s) => `<option value="${s}"${s === cur ? " selected" : ""}>${escapeHtml(SUB_CAUSA_LABEL[s])}</option>`))
+    .join("");
+}
+
+document.querySelector("#briefSubCausa")?.addEventListener("change", async (e) => {
+  if (!currentCycleId) return;
+  const patch = { sub_causa: e.target.value || null };
+  cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+  await updateCycle(patch);
+});
+
 // B=MAP cause selector
 document.querySelector("#briefCauseSelector")?.addEventListener("click", async (e) => {
   const btn = e.target.closest(".bmap-btn");
   if (!btn || !currentCycleId) return;
   const cause = btn.dataset.cause;
   document.querySelectorAll(".bmap-btn").forEach((b) => b.classList.toggle("active", b === btn));
-  const patch = { causa: cause, causa_source: "pm_confirmed", brief: { causa: { value: cause, confirmed: true } } };
+  // Cambiar de causa invalida la sub-causa si ya no pertenece al bucket.
+  const cur = getCurrentCycle();
+  const keepSub = cur?.sub_causa && SUB_CAUSA[cause]?.includes(cur.sub_causa) ? cur.sub_causa : null;
+  const patch = { causa: cause, causa_source: "pm_confirmed", sub_causa: keepSub, brief: { causa: { value: cause, confirmed: true } } };
   cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
   await updateCycle(patch);
   renderActiveCycle();

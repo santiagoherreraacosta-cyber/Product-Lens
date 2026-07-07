@@ -29,6 +29,7 @@ run("unit: extraction-service", ["--test", "tests/unit/extraction-service.test.j
 run("unit: cycle-logic", ["--test", "tests/unit/cycle-logic.test.js"]);
 run("unit: context-store", ["--test", "tests/unit/context-store.test.js"]);
 run("unit: gate-live-schema", ["--test", "tests/unit/gate-live-schema.test.js"]);
+run("unit: sub-causa", ["--test", "tests/unit/sub-causa.test.js"]);
 
 // Integration tests
 run("integration: api", ["--test", "tests/integration/api.test.js"]);
