@@ -23,6 +23,25 @@ export const SUB_CAUSA = {
   A: ["claridad", "capacidad", "friccion"],
   P: ["timing", "visibilidad", "ausencia"],
 };
+export const SUB_CAUSA_LABEL = {
+  motivacion: "Motivación (no ve el valor)",
+  confianza: "Confianza (no se fía)",
+  incentivo: "Incentivo (no compensa)",
+  claridad: "Claridad (no entiende qué/cómo)",
+  capacidad: "Capacidad (no tiene skill/recurso)",
+  friccion: "Fricción (el flujo cuesta)",
+  timing: "Timing (momento equivocado)",
+  visibilidad: "Visibilidad (no lo nota)",
+  ausencia: "Ausencia (no hay trigger)",
+};
+// Normaliza una sub-causa validando que pertenezca al bucket de la causa dada.
+// Sin causa válida, o sub-causa fuera del bucket → null (se descarta).
+export function normalizeSubCausa(value, causa) {
+  const c = normalizeCausa(causa);
+  if (!c) return null;
+  const v = String(value ?? "").trim().toLowerCase();
+  return (SUB_CAUSA[c] ?? []).includes(v) ? v : null;
+}
 
 // --- Escala cognitiva (5 niveles) + transiciones válidas (pares adyacentes) ---
 export const COGNITIVE_LEVELS = ["setup", "aha", "habit", "engaged", "principalidad"];

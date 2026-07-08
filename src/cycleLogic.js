@@ -1,7 +1,7 @@
 // Core cycle logic extracted from server.js so it can be unit-tested in
 // isolation (B7 — closes the "untested core logic" debt). These functions are
 // pure: no I/O, no globals.
-import { normalizeSubPerfil, normalizeTransition, normalizeCausa } from "./doctrina.js";
+import { normalizeSubPerfil, normalizeTransition, normalizeCausa, normalizeSubCausa } from "./doctrina.js";
 
 // Recursively merges `source` into `target`. Plain objects merge key-by-key;
 // arrays and primitives replace. This is what fixes the brief-wipe bug: a
@@ -68,6 +68,12 @@ export function applyBriefUpdates(cycle, updates) {
     patch[key] = val;
     if (key === "causa") patch.causa_source = "llm_suggested";
     changed.push(key);
+  }
+  // Sub-causa (opcional): se valida contra el bucket de la causa resultante
+  // (recién sugerida o ya existente). Fuera del bucket → se descarta.
+  if (typeof updates.sub_causa === "string" && updates.sub_causa.trim() && !cycle.sub_causa) {
+    const sc = normalizeSubCausa(updates.sub_causa, patch.causa ?? cycle.causa);
+    if (sc) { patch.sub_causa = sc; changed.push("sub_causa"); }
   }
   return { cycle: { ...cycle, ...patch }, changed };
 }
