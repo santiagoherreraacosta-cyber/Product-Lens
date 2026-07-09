@@ -846,6 +846,44 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 /* --- Experiment "live" (A2): pulso en el estado Corriendo --- */
 .running-status.is-live span { animation: livepulse 1.4s ease-in-out infinite; }
 @keyframes livepulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.35); } }
+/* PR-3 · F4 live block: día X/Y + muestra + treatment vs baseline + Confirmar tracking */
+.running-status.is-live { align-items: flex-start; flex-direction: column; gap: 8px; }
+.exp-live-head { align-items: center; display: inline-flex; gap: 7px; }
+.exp-live-head span { animation: livepulse 1.4s ease-in-out infinite; background: var(--green); border-radius: 999px; height: 7px; width: 7px; }
+.exp-tracking-ok { color: var(--green); font-size: 12px; font-weight: 700; margin: 0; }
+#confirmTrackingBtn { font-size: 12px; padding: 6px 10px; }
+
+/* PR-3 · ThinkingBubble (3 dots, dotpulse) */
+.thinking-dots { display: inline-flex; gap: 4px; }
+.thinking-dots span { animation: dotpulse 1.2s ease-in-out infinite; background: var(--text3); border-radius: 999px; display: inline-block; height: 6px; width: 6px; }
+.thinking-dots span:nth-child(2) { animation-delay: .16s; }
+.thinking-dots span:nth-child(3) { animation-delay: .32s; }
+
+/* PR-3 · export loading spinner (spin) */
+.export-spinner { animation: spin .7s linear infinite; border: 2px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; border-radius: 999px; display: inline-block; height: 12px; margin-right: 7px; vertical-align: -1px; width: 12px; }
+
+/* PR-3 · F1 evidence shortcut in the phase guide */
+.pg-action { background: var(--hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; font-size: 12px; font-weight: 600; margin-top: 10px; padding: 7px 11px; }
+.pg-action:hover { border-color: var(--brand-tint-br); }
+
+/* PR-3 · horizontal PhaseBar (6 dots, back-only jump) */
+.phase-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 4px; margin: 0 auto 4px; max-width: var(--conversation-max, 720px); padding: 4px 0; width: 100%; }
+.phase-bar .pb-current { color: var(--text2); font-size: 12px; font-weight: 600; margin-right: 8px; }
+.pb-dot { align-items: center; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; color: var(--text3); cursor: default; display: inline-flex; font-size: 11px; font-weight: 700; height: 26px; justify-content: center; min-width: 30px; padding: 0 8px; }
+.pb-dot[data-phasejump] { cursor: pointer; }
+.pb-dot[data-phasejump]:hover { border-color: var(--brand-tint-br); color: var(--text); }
+.pb-dot.is-past { background: var(--green-soft); border-color: transparent; color: var(--green); }
+.pb-dot.is-active { background: var(--brand); border-color: transparent; color: #fff; }
+.pb-dot.is-future { opacity: .6; }
+.pb-dot.is-skipped { position: relative; }
+.pb-dot.is-skipped::after { background: var(--amber); border-radius: 999px; content: ""; height: 6px; position: absolute; right: -1px; top: -1px; width: 6px; }
+.pb-sep { background: var(--border); height: 1px; width: 8px; }
+
+/* PR-3 · F5 DecisionPicker (3-way segmented) */
+.decision-picker { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; display: inline-flex; gap: 2px; padding: 2px; }
+.dp-btn { background: transparent; border: 0; border-radius: 8px; color: var(--text2); cursor: pointer; font-size: 13px; font-weight: 600; padding: 8px 16px; transition: background 140ms ease, color 140ms ease; }
+.dp-btn:hover { color: var(--text); }
+.dp-btn.active { background: var(--brand); color: #fff; }
 
 /* --- Home A3: secciones, transición en card, chips de ejemplo --- */
 .cycle-section { margin: 0 auto 18px; max-width: 1080px; }

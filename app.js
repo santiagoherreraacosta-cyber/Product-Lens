@@ -555,11 +555,31 @@ function renderPhaseGuide(cycle) {
   const items = reqs.map((r) =>
     `<li class="${r.met ? "is-met" : ""}"><span class="pg-check">${r.met ? "✓" : "○"}</span>${escapeHtml(r.message.replace(/^Falta (la |el |confirmar el )?/i, ""))}</li>`
   ).join("");
+  // F1 needs ≥2 convergent evidence sources; offer a shortcut into the fields.
+  const evidenceAction = phase === "F1"
+    ? `<button type="button" class="pg-action" id="pgAddEvidence">+ Adjuntar evidencia</button>`
+    : "";
   el.hidden = false;
   el.innerHTML = `
     <div class="pg-head"><strong>${escapeHtml(phase)} · ${escapeHtml(meta.label)}</strong><span class="pg-count">${done}/${reqs.length} para cerrar el gate</span></div>
     <p class="pg-goal">${escapeHtml(meta.goal)}</p>
-    ${reqs.length ? `<ul class="pg-checklist">${items}</ul>` : ""}`;
+    ${reqs.length ? `<ul class="pg-checklist">${items}</ul>` : ""}
+    ${evidenceAction}`;
+  document.getElementById("pgAddEvidence")?.addEventListener("click", focusEvidenceField);
+}
+
+// F1 evidence shortcut: switch to the Brief, then scroll + focus + highlight the
+// first empty of the two evidence fields (primary → second source).
+function focusEvidenceField() {
+  setDeliverable("brief");
+  const primary = document.getElementById("briefEvidence");
+  const second = document.getElementById("secondSource");
+  const isEmpty = (el) => !el || !(el.textContent || "").trim() || /CONFIRMAR/.test(el.textContent);
+  const target = isEmpty(primary) ? primary : (isEmpty(second) ? second : primary);
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.remove("fillpop"); void target.offsetWidth; target.classList.add("fillpop");
+  target.focus?.();
 }
 
 function renderActiveCycle() {
@@ -974,18 +994,44 @@ function syncDeliverableToPhase(cycle, phase) {
   setDeliverable(wants);
 }
 
-// A2 · F4 "live": reflect the experiment run state in the panel footer.
+// Extract a whole number of days from a free-text duration ("14 días",
+// "2 semanas", "10 d"). Returns null if none can be read.
+function parseDurationDays(text) {
+  if (!text) return null;
+  const s = String(text).toLowerCase();
+  const m = s.match(/(\d+(?:[.,]\d+)?)\s*(sem|week|d[ií]a|d\b|d\s)/);
+  if (!m) { const n = s.match(/\d+/); return n ? Number(n[0]) : null; }
+  const n = Number(m[1].replace(",", "."));
+  return /sem|week/.test(m[2]) ? Math.round(n * 7) : Math.round(n);
+}
+
+// A2 + PR-3 · F4 "live": a data-driven run block (día X/Y, muestra, treatment vs
+// baseline) plus a "Confirmar tracking" action while the experiment runs.
 function renderExperimentStatus(cycle, phase) {
   const el = document.getElementById("experimentStatus");
   if (!el) return;
   const exp = cycle?.experiment ?? {};
   const val = (v) => v?.value ?? (typeof v === "string" ? v : null);
   if (phase === "F4" && cycle?.estado === "activo") {
-    const sample = val(exp.tamano_muestra);
-    const duration = val(exp.duracion);
-    const bits = [sample ? `muestra ${escapeHtml(sample)}` : "", duration ? `${escapeHtml(duration)}` : ""].filter(Boolean).join(" · ");
     el.classList.add("is-live");
-    el.innerHTML = `<span></span>Corriendo${bits ? ` · ${bits}` : ""}`;
+    const sample = val(exp.tamano_muestra);
+    const totalD = parseDurationDays(val(exp.duracion));
+    const startedAt = cycle.experiment?.started_at ?? exp.started_at;
+    let dayD = null;
+    if (startedAt) dayD = Math.max(1, Math.floor((Date.now() - new Date(startedAt).getTime()) / 86400000) + 1);
+    const treatment = val(exp.treatment_pct);
+    const baseline = val(exp.baseline_pct);
+    const tracking = exp.tracking_confirmed === true;
+    const bits = [
+      dayD ? `día ${dayD}${totalD ? `/${totalD}` : ""}` : "",
+      sample ? `muestra ${escapeHtml(sample)}` : "",
+      (treatment != null && baseline != null) ? `${escapeHtml(String(treatment))} vs ${escapeHtml(String(baseline))} (baseline)` : "",
+    ].filter(Boolean).join(" · ");
+    el.innerHTML = `<div class="exp-live-head"><span></span>Corriendo${bits ? ` · ${bits}` : ""}</div>` +
+      (tracking
+        ? `<p class="exp-tracking-ok">✓ Tracking confirmado</p>`
+        : `<button type="button" class="secondary-action" id="confirmTrackingBtn">Confirmar tracking</button>`);
+    document.getElementById("confirmTrackingBtn")?.addEventListener("click", confirmTracking);
   } else if (phase === "F5" || cycle?.estado === "cerrado") {
     el.classList.remove("is-live");
     el.innerHTML = `<span></span>Concluido`;
@@ -993,6 +1039,16 @@ function renderExperimentStatus(cycle, phase) {
     el.classList.remove("is-live");
     el.innerHTML = `<span></span>Borrador · listo para F3`;
   }
+}
+
+async function confirmTracking() {
+  if (!currentCycleId) return;
+  const cycle = getCurrentCycle();
+  const experiment = { ...(cycle?.experiment ?? {}), tracking_confirmed: true };
+  cycles = cycles.map((c) => c.id === currentCycleId ? { ...c, experiment } : c);
+  renderExperimentStatus(getCurrentCycle(), getActivePhase());
+  await updateCycle({ experiment });
+  showToast("Tracking confirmado. El experimento queda instrumentado.");
 }
 
 function setDeliverable(next) {
@@ -1057,6 +1113,35 @@ function renderStepper(pulseKey = null) {
     activePhaseLabel.textContent = `${selected.key} · ${selected.label}`;
     activePhaseNote.textContent = selected.note || "";
   }
+  renderPhaseBar(phases, active, selected);
+}
+
+// Horizontal 6-dot PhaseBar in the conversation header. Jumping is back-only:
+// past phases are clickable, the current one is marked, forward ones are inert
+// (you advance forward only through the gate, never by skipping it).
+function renderPhaseBar(phases, active, selected) {
+  const bar = document.getElementById("phaseBar");
+  if (!bar) return;
+  const cycle = getCurrentCycle();
+  if (!cycle) { bar.hidden = true; bar.innerHTML = ""; return; }
+  bar.hidden = false;
+  const activeIdx = phases.findIndex((p) => p.key === active);
+  const dots = phases.map((phase, i) => {
+    const isActive = phase.key === active;
+    const isPast = i < activeIdx || phase.state === "done";
+    const mark = phase.state === "done" ? "✓" : phase.key;
+    const cls = [
+      "pb-dot",
+      isActive ? "is-active" : "",
+      isPast && !isActive ? "is-past" : "",
+      phase.skipped ? "is-skipped" : "",
+      i > activeIdx ? "is-future" : "",
+    ].filter(Boolean).join(" ");
+    const clickable = i < activeIdx; // back-only
+    return `<button class="${cls}" type="button" role="tab" aria-selected="${isActive}" ${clickable ? `data-phasejump="${escapeHtml(phase.key)}"` : "disabled"} title="${escapeHtml(phase.key)} · ${escapeHtml(phase.label)}">${escapeHtml(mark)}</button>`;
+  }).join('<span class="pb-sep"></span>');
+  const label = selected ? `${selected.key} · ${selected.label}` : "";
+  bar.innerHTML = `<span class="pb-current">${escapeHtml(label)}</span>${dots}`;
 }
 
 // --- Messages ---
@@ -1203,7 +1288,7 @@ async function sendMessage() {
   // Real LLM call
   inner.insertAdjacentHTML(
     "beforeend",
-    `<article class="ai-message"><div class="ai-avatar">D</div><div class="ai-body"><p class="thinking">…</p></div></article>`
+    `<article class="ai-message"><div class="ai-avatar">D</div><div class="ai-body"><p class="thinking"><span class="thinking-dots" aria-label="Pensando"><span></span><span></span><span></span></span></p></div></article>`
   );
   messageStream.scrollTop = messageStream.scrollHeight;
   const thinkingEl = inner.querySelector(".ai-message:last-child .ai-body p");
@@ -1639,12 +1724,34 @@ function openExportModal(missing) {
         <button type="button" class="primary-action" data-export="force">Exportar con supuestos</button>
       </div>
     </div>`);
-  overlay.querySelector('[data-export="complete"]')?.addEventListener("click", overlay.close);
+  overlay.querySelector('[data-export="complete"]')?.addEventListener("click", () => {
+    overlay.close();
+    focusMissingBriefField(missing[0]);
+  });
   overlay.querySelector('[data-export="force"]')?.addEventListener("click", () => exportBriefFlow(true));
 }
 
 function closeExportModal() {
   document.getElementById("exportModal")?.remove();
+}
+
+// "Completar campos": jump the PM straight to the exact unresolved field —
+// switch to the Brief, scroll it into view, focus it, and glow-highlight it.
+const REQUIRED_FIELD_EL = {
+  behavior_statement: "briefBehavior",
+  causa: "briefCauseSelector",
+  evidencia_primaria: "briefEvidence",
+  hipotesis: "hypothesisField",
+  senal_cuantitativa: "metricField",
+};
+function focusMissingBriefField(field) {
+  if (!field) return;
+  setDeliverable("brief");
+  const el = document.getElementById(REQUIRED_FIELD_EL[field.key]);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.remove("fillpop"); void el.offsetWidth; el.classList.add("fillpop");
+  el.focus?.();
 }
 
 function downloadBrief() {
@@ -1781,8 +1888,16 @@ function openExportPreview(markdown, title) {
     catch { showToast("No se pudo copiar. Usa Descargar.", true); }
   });
   dlBtn?.addEventListener("click", () => {
-    if (fmt === "pdf") openPdfPrint(markdown, title);
-    else downloadMarkdownFile(markdown, title);
+    const label = dlBtn.textContent;
+    dlBtn.classList.add("is-loading");
+    dlBtn.innerHTML = `<span class="export-spinner" aria-hidden="true"></span>Generando…`;
+    // Let the spinner paint before the (blocking) print/download work.
+    setTimeout(() => {
+      if (fmt === "pdf") openPdfPrint(markdown, title);
+      else downloadMarkdownFile(markdown, title);
+      dlBtn.classList.remove("is-loading");
+      dlBtn.textContent = label;
+    }, 300);
   });
 }
 
@@ -1897,6 +2012,14 @@ phaseStepper?.addEventListener("click", (event) => {
   if (!row) return;
   goToPhase(row.dataset.phase);
 });
+
+document.getElementById("phaseBar")?.addEventListener("click", (event) => {
+  const dot = event.target.closest("[data-phasejump]");
+  if (!dot) return;
+  goToPhase(dot.dataset.phasejump);
+});
+
+document.getElementById("exportBriefBtn")?.addEventListener("click", () => exportBriefFlow(false));
 
 chatForm?.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -2027,6 +2150,27 @@ document.querySelector("#patternSearch")?.addEventListener("input", (e) => {
 
 // Close cycle button
 document.getElementById("closeCycleButton")?.addEventListener("click", closeCycle);
+
+// F5 DecisionPicker: 3-way segmented control. Sets the (hidden) decision value,
+// derives the pattern type, and relabels the submit button per decision.
+const DECISION_META = {
+  escalado: { tipo: "patron", submit: "Escalar y crear patrón" },
+  matado: { tipo: "anti_patron", submit: "Matar y crear anti-patrón" },
+  iterando: { tipo: "patron", submit: "Iterar — volver a F1" },
+};
+document.getElementById("decisionPicker")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-decision]");
+  if (!btn) return;
+  const decision = btn.dataset.decision;
+  document.querySelectorAll("#decisionPicker .dp-btn").forEach((b) => b.classList.toggle("active", b === btn));
+  const hidden = document.getElementById("closureDecision");
+  if (hidden) hidden.value = decision;
+  const meta = DECISION_META[decision] ?? DECISION_META.escalado;
+  const patternType = document.getElementById("patternType");
+  if (patternType) patternType.value = meta.tipo;
+  const submitBtn = document.getElementById("closeCycleButton");
+  if (submitBtn && !submitBtn.disabled) submitBtn.textContent = meta.submit;
+});
 
 paletteSearch?.addEventListener("input", () => {
   const term = paletteSearch.value.toLowerCase();
