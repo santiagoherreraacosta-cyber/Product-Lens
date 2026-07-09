@@ -518,7 +518,8 @@ async function handle(req, res) {
     if (!body.title) return json(res, { error: "title required" }, 400);
     // F0 validation (Fase 2): reject solution/feature framing — a cycle must
     // start from a behavior ("quién hace/no hace qué"), not a feature to build.
-    if (!body.force && looksLikeFeature(body.title)) {
+    const featureFramed = looksLikeFeature(body.title);
+    if (!body.force && featureFramed) {
       logAudit(currentUser?.email, "behavior_rejected", "new", { reason: "feature", title: body.title });
       return json(res, {
         error: "Eso es una solución, no un comportamiento.",
@@ -527,7 +528,7 @@ async function handle(req, res) {
       }, 422);
     }
     const now = new Date().toISOString();
-    const cycle = {
+    let cycle = {
       id: `cycle-${crypto.randomUUID()}`,
       title: body.title,
       sub_perfil: normalizeSubPerfil(body.sub_perfil),
@@ -553,6 +554,13 @@ async function handle(req, res) {
       last_activity_at: now,
       createdBy: currentUser?.sub,
     };
+    // Escape hatch: the PM overrode the feature-vs-behavior guard. Not free —
+    // record a risk on the cycle (surfaced in the risk log + Métricas).
+    if (featureFramed && body.force) {
+      cycle = acceptRisk(cycle, "F0", "Ciclo creado con encuadre de feature (guardrail conducta-vs-feature anulado). El comportamiento a intervenir no quedó explícito de entrada.", { id: currentUser?.sub, name: currentUser?.email });
+      cycle.riskAccepted = true;
+      logAudit(currentUser?.email, "behavior_override", cycle.id, { title: body.title });
+    }
     cycles.set(cycle.id, cycle);
     void persistCycles();
     logAudit(currentUser?.email, "cycle_created", cycle.id);
@@ -966,7 +974,7 @@ async function handle(req, res) {
         rigor: gatesPassed + gatesSkipped ? Math.round((gatesPassed / (gatesPassed + gatesSkipped)) * 100) : null,
       },
       patterns: { created: count("pattern_created"), reused: count("pattern_reused"), total: patterns.length },
-      behavior: { rejected: count("behavior_rejected") },
+      behavior: { rejected: count("behavior_rejected"), overridden: count("behavior_override") },
       chat: { messages: count("chat_message"), briefExtractions: count("brief_extracted") },
       exports: {
         attempted: count("export_attempted"),
