@@ -101,13 +101,19 @@
             <div><p class="eyebrow">Home</p><h1>Ciclos</h1><p>Retoma decisiones en curso o arranca desde un comportamiento, no desde una feature.</p></div>
             <button id="newCycleButton" class="primary-action" type="button">Nuevo ciclo</button>
           </header>
-          <div id="cyclesFilters" class="filter-row" role="tablist">
-            <button class="filter active" type="button" data-cyclefilter="all">Todos</button>
-            <button class="filter" type="button" data-cyclefilter="activo">En curso</button>
-            <button class="filter" type="button" data-cyclefilter="cerrado">Cerrados</button>
-            <button class="filter cause-filter motivation" type="button" data-cyclefilter="M"><span></span>Motivación</button>
-            <button class="filter cause-filter ability" type="button" data-cyclefilter="A"><span></span>Ability</button>
-            <button class="filter cause-filter prompt" type="button" data-cyclefilter="P"><span></span>Prompt</button>
+          <div class="cycles-filter-bar">
+            <div id="statusFilters" class="segmented-control" role="tablist" aria-label="Estado del ciclo">
+              <button class="segment active" type="button" role="tab" aria-selected="true" data-statusfilter="all">Todos</button>
+              <button class="segment" type="button" role="tab" aria-selected="false" data-statusfilter="activo">En curso</button>
+              <button class="segment" type="button" role="tab" aria-selected="false" data-statusfilter="cerrado">Cerrados</button>
+            </div>
+            <div id="causeFilters" class="filter-bar" role="group" aria-label="Causa B=MAP">
+              <button class="filter active" type="button" data-causefilter="all">Todas las causas</button>
+              <button class="filter cause-filter motivation" type="button" data-causefilter="M"><span></span>Motivación</button>
+              <button class="filter cause-filter ability" type="button" data-causefilter="A"><span></span>Ability</button>
+              <button class="filter cause-filter prompt" type="button" data-causefilter="P"><span></span>Prompt</button>
+            </div>
+            <button id="clearCyclesFilters" class="clear-filters" type="button" hidden>Limpiar filtros</button>
           </div>
           <div id="cyclesList" aria-label="Ciclos"></div>
           <section class="empty-teacher" id="emptyCycles">

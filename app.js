@@ -370,7 +370,8 @@ async function updateCycle(patch) {
   }
 }
 
-let cyclesFilter = "all";
+let statusFilter = "all"; // all | activo | cerrado
+let causeFilter = "all"; // all | M | A | P
 
 // Cognitive ladder for the transition path on cards (A3).
 // Renders the 5-level cognitive scale highlighting the cycle's transition.
@@ -415,14 +416,36 @@ function cycleCardHtml(cycle) {
     </article>`;
 }
 
+// Status and cause are independent controls that compose with AND.
+function matchesStatusFilter(cycle) {
+  if (statusFilter === "all") return true;
+  if (statusFilter === "activo") return (cycle.estado ?? "activo") === "activo";
+  return cycle.estado === "cerrado" || cycle.estado === "descartado"; // cerrado
+}
+
+function matchesCauseFilter(cycle) {
+  if (causeFilter === "all") return true;
+  return cycle.causa === causeFilter; // M/A/P
+}
+
 function matchesCycleFilter(cycle) {
-  if (cyclesFilter === "all") return true;
-  if (cyclesFilter === "activo") return (cycle.estado ?? "activo") === "activo";
-  if (cyclesFilter === "cerrado") return cycle.estado === "cerrado" || cycle.estado === "descartado";
-  return cycle.causa === cyclesFilter; // M/A/P
+  return matchesStatusFilter(cycle) && matchesCauseFilter(cycle);
+}
+
+function activeFilterCount() {
+  return (statusFilter !== "all" ? 1 : 0) + (causeFilter !== "all" ? 1 : 0);
+}
+
+function syncClearFiltersButton() {
+  const btn = document.querySelector("#clearCyclesFilters");
+  if (!btn) return;
+  const n = activeFilterCount();
+  btn.hidden = n === 0;
+  btn.textContent = `Limpiar filtros (${n})`;
 }
 
 function renderCyclesList() {
+  syncClearFiltersButton();
   if (!cycles.length) {
     cyclesList.innerHTML = "";
     emptyCycles.hidden = false;
@@ -436,7 +459,7 @@ function renderCyclesList() {
     ? `<div class="cycle-section"><p class="section-label">${label} · ${list.length}</p><div class="cycle-grid">${list.map(cycleCardHtml).join("")}</div></div>`
     : "";
   const body = `${section("En curso", open)}${section("Cerrados", closed)}`;
-  cyclesList.innerHTML = body || `<p class="loading-state">Sin ciclos para este filtro.</p>`;
+  cyclesList.innerHTML = body || `<p class="loading-state">Ningún ciclo coincide con esta combinación de filtros.</p>`;
 
   cyclesList.querySelectorAll("[data-cycle-id]").forEach((card) => {
     card.addEventListener("click", () => {
@@ -1885,12 +1908,37 @@ viewButtons.forEach((button) => {
 newCycleButton?.addEventListener("click", openNewCycleModal);
 newCycleEmpty?.addEventListener("click", openNewCycleModal);
 
-// Home filters (A3)
-document.querySelector("#cyclesFilters")?.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-cyclefilter]");
+// Home filters (PR-1): status + cause compose with AND.
+document.querySelector("#statusFilters")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-statusfilter]");
   if (!btn) return;
-  cyclesFilter = btn.dataset.cyclefilter;
-  document.querySelectorAll("#cyclesFilters .filter").forEach((b) => b.classList.toggle("active", b === btn));
+  statusFilter = btn.dataset.statusfilter;
+  document.querySelectorAll("#statusFilters .segment").forEach((b) => {
+    const on = b === btn;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  renderCyclesList();
+});
+
+document.querySelector("#causeFilters")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-causefilter]");
+  if (!btn) return;
+  causeFilter = btn.dataset.causefilter;
+  document.querySelectorAll("#causeFilters .filter").forEach((b) => b.classList.toggle("active", b === btn));
+  renderCyclesList();
+});
+
+document.querySelector("#clearCyclesFilters")?.addEventListener("click", () => {
+  statusFilter = "all";
+  causeFilter = "all";
+  document.querySelectorAll("#statusFilters .segment").forEach((b) => {
+    const on = b.dataset.statusfilter === "all";
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  document.querySelectorAll("#causeFilters .filter").forEach((b) =>
+    b.classList.toggle("active", b.dataset.causefilter === "all"));
   renderCyclesList();
 });
 
