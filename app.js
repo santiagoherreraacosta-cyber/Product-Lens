@@ -270,6 +270,18 @@ function openModal(id, innerHtml) {
   return overlay;
 }
 
+// Auto-suggest a sub-perfil from keywords in the typed behavior (doctrine
+// heuristic). A manual pick always wins once the PM touches the <select>.
+const SUBPERFIL_KEYWORDS = [
+  { sub: "empleado_aspirante", re: /\b(confia|confía|confianza|estafa|legit|legítim|legitim|desconfia)/i },
+  { sub: "rebuscador_digital", re: /\b(tiempo|rápid|rapid|72\s?h|día|dia|hoy|urg|inmediat)/i },
+  { sub: "joven_visionario", re: /\b(capital|plata|dinero|invert|invers|escala|emprend)/i },
+];
+function suggestSubPerfil(text) {
+  for (const { sub, re } of SUBPERFIL_KEYWORDS) if (re.test(text)) return sub;
+  return null;
+}
+
 function openNewCycleModal() {
   const overlay = openModal("newCycleModal", `
     <div class="export-modal-card newcycle-card">
@@ -278,12 +290,20 @@ function openNewCycleModal() {
       <label class="nc-label" for="ncBehavior">¿Qué seller, haciendo qué, no está haciendo qué?</label>
       <textarea id="ncBehavior" class="nc-textarea" rows="3" placeholder="El Rebuscador Digital no configura su 2º envío dentro de las 72h tras el primer pedido…"></textarea>
       <div class="nc-grid">
-        <div><label class="nc-label" for="ncSub">Sub-perfil (opcional)</label><select id="ncSub" class="nc-input">${subPerfilOptions()}</select></div>
+        <div>
+          <label class="nc-label" for="ncSub">Sub-perfil (opcional)</label>
+          <select id="ncSub" class="nc-input">${subPerfilOptions()}</select>
+          <p id="ncSubHint" class="nc-hint" hidden></p>
+        </div>
         <div><label class="nc-label" for="ncTrans">Transición (opcional)</label><select id="ncTrans" class="nc-input">${transitionOptions()}</select></div>
       </div>
+      <div id="ncTransPreview" class="nc-trans-preview" hidden></div>
       <label class="nc-label" for="ncSegment">Segmento (cohorte conductual, opcional)</label>
       <input id="ncSegment" class="nc-input" placeholder="ej. sellers inactivos 30d / registrados sin 1ª orden en 7d" />
       <p id="ncError" class="login-error" hidden></p>
+      <div id="ncEscape" class="nc-escape" hidden>
+        <button type="button" class="link-action" data-nc="force">Crear de todas formas (registra riesgo)</button>
+      </div>
       <div class="export-modal-actions">
         <button type="button" class="secondary-action" data-nc="cancel">Cancelar</button>
         <button type="button" class="primary-action" data-nc="create">Crear ciclo · abrir F0</button>
@@ -291,18 +311,49 @@ function openNewCycleModal() {
     </div>`);
   const q = (sel) => overlay.querySelector(sel);
   q('[data-nc="cancel"]')?.addEventListener("click", overlay.close);
-  const submit = async () => {
+
+  // Sub-perfil suggestion: run on input until the PM touches the <select>.
+  let subTouched = false;
+  const subSel = q("#ncSub"), subHint = q("#ncSubHint");
+  subSel?.addEventListener("change", () => { subTouched = true; if (subHint) subHint.hidden = true; });
+  q("#ncBehavior")?.addEventListener("input", (e) => {
+    if (subTouched) return;
+    const sug = suggestSubPerfil(e.target.value ?? "");
+    if (sug && subSel) {
+      subSel.value = sug;
+      if (subHint) { subHint.textContent = `Sugerido por el texto: ${subPerfilLabel(sug)}`; subHint.hidden = false; }
+    } else if (subHint) { subHint.hidden = true; if (subSel) subSel.value = ""; }
+  });
+
+  // CognitiveTransition mini-preview once a transition is chosen.
+  const preview = q("#ncTransPreview");
+  q("#ncTrans")?.addEventListener("change", (e) => {
+    const t = e.target.value;
+    if (t && preview) { preview.innerHTML = cognitivePathHtml(t); preview.hidden = false; }
+    else if (preview) { preview.hidden = true; preview.innerHTML = ""; }
+  });
+
+  const extraFrom = () => ({
+    sub_perfil: q("#ncSub")?.value || null,
+    transicion: q("#ncTrans")?.value || null,
+    segmento_objetivo: (q("#ncSegment")?.value ?? "").trim() || null,
+  });
+  const submit = async (force = false) => {
     const behavior = (q("#ncBehavior")?.value ?? "").trim();
     if (!behavior) { const err = q("#ncError"); if (err) { err.textContent = "Describe el comportamiento para empezar."; err.hidden = false; } return; }
+    const rejection = await createCycle(behavior, { ...extraFrom(), force });
+    if (rejection?.feature) {
+      // Keep the modal open and offer the logged escape hatch.
+      const err = q("#ncError"); const esc = q("#ncEscape");
+      if (err) { err.textContent = rejection.error || "Eso es una solución, no un comportamiento."; err.hidden = false; }
+      if (esc) esc.hidden = false;
+      return;
+    }
     overlay.close();
-    await createCycle(behavior, {
-      sub_perfil: q("#ncSub")?.value || null,
-      transicion: q("#ncTrans")?.value || null,
-      segmento_objetivo: (q("#ncSegment")?.value ?? "").trim() || null,
-    });
   };
-  q('[data-nc="create"]')?.addEventListener("click", submit);
-  q("#ncBehavior")?.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); });
+  q('[data-nc="create"]')?.addEventListener("click", () => submit(false));
+  q('[data-nc="force"]')?.addEventListener("click", () => submit(true));
+  q("#ncBehavior")?.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(false); });
   setTimeout(() => q("#ncBehavior")?.focus(), 30);
 }
 
@@ -316,6 +367,7 @@ async function createCycle(title, extra = {}) {
         sub_perfil: extra.sub_perfil || null,
         transicion: extra.transicion || null,
         segmento_objetivo: extra.segmento_objetivo || null,
+        force: extra.force || false,
         phases: structuredClone(phaseSeed),
         activePhase: "F0",
         riskAccepted: false,
@@ -324,9 +376,14 @@ async function createCycle(title, extra = {}) {
     if (res.status === 422) {
       // F0 validation: the title reads like a feature, not a behavior.
       const err = await res.json().catch(() => ({}));
+      // The New Cycle modal handles this inline (escape hatch); other entry
+      // points (empty-state chips, ⌘K) fall back to the workspace rejection.
+      if (document.getElementById("newCycleModal")) {
+        return { feature: true, error: err.error, hint: err.hint };
+      }
       setView("workspace");
       addFeatureRejection(err.error ?? "Eso es una solución, no un comportamiento.", err.hint);
-      return;
+      return { feature: true, error: err.error, hint: err.hint };
     }
     if (!res.ok) return;
     const cycle = await res.json();
