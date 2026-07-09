@@ -578,7 +578,7 @@ function focusEvidenceField() {
   const target = isEmpty(primary) ? primary : (isEmpty(second) ? second : primary);
   if (!target) return;
   target.scrollIntoView({ behavior: "smooth", block: "center" });
-  target.classList.remove("fillpop"); void target.offsetWidth; target.classList.add("fillpop");
+  restartAnimation(target, "fillpop");
   target.focus?.();
 }
 
@@ -1123,25 +1123,40 @@ function renderPhaseBar(phases, active, selected) {
   const bar = document.getElementById("phaseBar");
   if (!bar) return;
   const cycle = getCurrentCycle();
-  if (!cycle) { bar.hidden = true; bar.innerHTML = ""; return; }
+  if (!cycle) { bar.hidden = true; bar.replaceChildren(); return; }
   bar.hidden = false;
+  bar.replaceChildren();
   const activeIdx = phases.findIndex((p) => p.key === active);
-  const dots = phases.map((phase, i) => {
+
+  const current = document.createElement("span");
+  current.className = "pb-current";
+  current.textContent = selected ? `${selected.key} · ${selected.label}` : "";
+  bar.appendChild(current);
+
+  phases.forEach((phase, i) => {
+    if (i > 0) {
+      const sep = document.createElement("span");
+      sep.className = "pb-sep";
+      bar.appendChild(sep);
+    }
     const isActive = phase.key === active;
     const isPast = i < activeIdx || phase.state === "done";
-    const mark = phase.state === "done" ? "✓" : phase.key;
-    const cls = [
-      "pb-dot",
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.setAttribute("role", "tab");
+    dot.setAttribute("aria-selected", String(isActive));
+    dot.className = ["pb-dot",
       isActive ? "is-active" : "",
       isPast && !isActive ? "is-past" : "",
       phase.skipped ? "is-skipped" : "",
       i > activeIdx ? "is-future" : "",
     ].filter(Boolean).join(" ");
-    const clickable = i < activeIdx; // back-only
-    return `<button class="${cls}" type="button" role="tab" aria-selected="${isActive}" ${clickable ? `data-phasejump="${escapeHtml(phase.key)}"` : "disabled"} title="${escapeHtml(phase.key)} · ${escapeHtml(phase.label)}">${escapeHtml(mark)}</button>`;
-  }).join('<span class="pb-sep"></span>');
-  const label = selected ? `${selected.key} · ${selected.label}` : "";
-  bar.innerHTML = `<span class="pb-current">${escapeHtml(label)}</span>${dots}`;
+    dot.title = `${phase.key} · ${phase.label}`;
+    dot.textContent = phase.state === "done" ? "✓" : phase.key;
+    if (i < activeIdx) dot.dataset.phasejump = phase.key; // back-only jump
+    else dot.disabled = true;
+    bar.appendChild(dot);
+  });
 }
 
 // --- Messages ---
@@ -1586,9 +1601,7 @@ function flashBriefFields(changed) {
   for (const key of changed) {
     const el = document.getElementById(BRIEF_FIELD_TO_EL[key]);
     if (!el) continue;
-    el.classList.remove("fillpop");
-    void el.offsetWidth; // restart animation
-    el.classList.add("fillpop");
+    restartAnimation(el, "fillpop");
   }
   if (changed.length) showToast(`Brief actualizado: ${changed.length} campo(s) desde la conversación.`);
 }
@@ -1750,7 +1763,7 @@ function focusMissingBriefField(field) {
   const el = document.getElementById(REQUIRED_FIELD_EL[field.key]);
   if (!el) return;
   el.scrollIntoView({ behavior: "smooth", block: "center" });
-  el.classList.remove("fillpop"); void el.offsetWidth; el.classList.add("fillpop");
+  restartAnimation(el, "fillpop");
   el.focus?.();
 }
 
@@ -1914,6 +1927,14 @@ function showToast(message, isError = false, duration = isError ? 5000 : 2800) {
 function rotatePlaceholder() {
   if (placeholder) placeholder.firstChild.textContent = prompts[promptIndex % prompts.length];
   promptIndex++;
+}
+
+// Re-trigger a CSS animation by toggling a class across a forced reflow.
+function restartAnimation(el, cls) {
+  if (!el) return;
+  el.classList.remove(cls);
+  el.getBoundingClientRect(); // force reflow so the re-added animation restarts
+  el.classList.add(cls);
 }
 
 // --- Escape HTML ---
