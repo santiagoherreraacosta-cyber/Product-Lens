@@ -593,7 +593,7 @@ async function closeCycle() {
     }
     const data = await res.json();
     const { cycle, pattern, iterated, peeking } = data;
-    if (peeking) showToast("⚠ Cierre temprano (peeking): leíste el experimento antes del criterio de stop. Quedó registrado como riesgo.", true);
+    if (peeking) showToast("Cierre temprano (peeking): leíste el experimento antes del criterio de stop. Quedó registrado como riesgo.", true);
     cycles = cycles.map((c) => (c.id === cycle.id ? cycle : c));
     if (iterated) {
       // Iteration loop: cycle went back to F1 instead of closing.
@@ -1284,7 +1284,7 @@ function renderReuseBanner(cycle) {
   const name = pat?.nombre ?? "patrón de la Biblioteca";
   inner.insertAdjacentHTML(
     "afterbegin",
-    `<div class="reuse-banner">🔁 Sembrado desde el patrón: <strong>${escapeHtml(name)}</strong> — confirma contexto e hipótesis antes de avanzar.</div>`
+    `<div class="reuse-banner">Sembrado desde el patrón: <strong>${escapeHtml(name)}</strong> — confirma contexto e hipótesis antes de avanzar.</div>`
   );
 }
 
