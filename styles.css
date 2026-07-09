@@ -496,6 +496,14 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 auto 18px; max-width: 1080px; }
 .filter { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; color: var(--text2); font-size: 12px; font-weight: 600; padding: 7px 10px; }
 .filter.active, .filter:hover { background: var(--hover); color: var(--text); }
+.cycles-filter-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; margin: 0 auto 18px; max-width: 1080px; }
+.segmented-control { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; display: inline-flex; gap: 2px; padding: 2px; }
+.segment { background: transparent; border: 0; border-radius: 999px; color: var(--text2); cursor: pointer; font-size: 12px; font-weight: 600; padding: 6px 12px; transition: background 140ms ease, color 140ms ease; }
+.segment:hover { color: var(--text); }
+.segment.active { background: var(--hover); color: var(--text); }
+.filter-bar { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.clear-filters { background: transparent; border: 0; border-radius: 999px; color: var(--text3); cursor: pointer; font-size: 12px; font-weight: 600; margin-left: auto; padding: 7px 10px; }
+.clear-filters:hover { background: var(--hover); color: var(--text); }
 .cycle-grid, .pattern-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 auto; max-width: 1080px; }
 .dashboard-card, .pattern-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 15px; transition: border 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
 .dashboard-card:hover, .pattern-card:hover { border-color: var(--brand-tint-br); box-shadow: var(--shadow-hover); transform: translateY(-1px); }
