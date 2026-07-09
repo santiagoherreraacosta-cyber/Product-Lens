@@ -138,7 +138,10 @@
             <span class="cycle-name" id="activeCycleName">Sin ciclo activo</span>
             <button id="advancePhaseBtn" class="advance-phase-btn" type="button" hidden>Avanzar a F2 ✓</button>
             <button id="commandButton" class="command-button" type="button">⌘K</button>
+            <button id="exportBriefBtn" class="command-button" type="button" title="Exportar brief" aria-label="Exportar brief">▤</button>
           </header>
+
+          <div id="phaseBar" class="phase-bar" role="tablist" aria-label="Fases del ciclo" hidden></div>
 
           <div id="phaseGuide" class="phase-guide" hidden></div>
 
@@ -148,12 +151,13 @@
             <h2>Cerrar ciclo — F5 Aprendizaje</h2>
             <div class="close-grid">
               <div class="field-group">
-                <label for="closureDecision">Decisión</label>
-                <select id="closureDecision">
-                  <option value="escalado">Escalar</option>
-                  <option value="matado">Matar</option>
-                  <option value="iterando">Iterar</option>
-                </select>
+                <label id="decisionLabel">Decisión</label>
+                <div id="decisionPicker" class="decision-picker" role="group" aria-labelledby="decisionLabel">
+                  <button type="button" class="dp-btn active" data-decision="escalado">Escalar</button>
+                  <button type="button" class="dp-btn" data-decision="matado">Matar</button>
+                  <button type="button" class="dp-btn" data-decision="iterando">Iterar</button>
+                </div>
+                <input type="hidden" id="closureDecision" value="escalado" />
               </div>
               <div class="field-group">
                 <label for="closureDelta">Delta métrica</label>
