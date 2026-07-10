@@ -907,6 +907,12 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .pattern-card[role="button"] { cursor: pointer; }
 .pattern-detail-card { max-width: 480px; }
 .pattern-detail-card .pd-title { font-size: 18px; font-weight: 700; margin: 8px 0 8px; letter-spacing: -.01em; }
+/* PR-4 · Reuse confirmation modal */
+.reuse-confirm-card { max-width: 460px; }
+.reuse-confirm-card .eyebrow { margin-bottom: 6px; }
+.reuse-confirm-card .pd-title { font-size: 18px; font-weight: 700; margin: 0 0 12px; letter-spacing: -.01em; }
+.reuse-confirm-msg { color: var(--text); font-size: 13.5px; line-height: 1.5; margin: 0 0 8px; }
+.reuse-confirm-note { color: var(--text3); font-size: 12.5px; margin: 0 0 14px; }
 .pd-row { margin: 12px 0; }
 .pd-row .section-label { display: block; margin-bottom: 3px; }
 .pd-row p { color: var(--text); font-size: 13.5px; margin: 0; }

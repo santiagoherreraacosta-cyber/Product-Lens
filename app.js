@@ -636,6 +636,27 @@ function renderActiveCycle() {
   }
 }
 
+// PR-4 · Reuse confirmation. Reusing a pattern seeds a brand-new F0 cycle with
+// the pattern's sub-perfil/causa/hipótesis pre-filled but UNCONFIRMED — reuse
+// never skips a phase or a gate. Make that explicit before creating the cycle.
+function openReuseConfirm(patternId) {
+  const p = patterns.find((x) => x.id === patternId);
+  if (!p) return;
+  const overlay = openModal("reuseConfirm", `
+    <div class="export-modal-card reuse-confirm-card">
+      <p class="eyebrow">Reutilizar patrón</p>
+      <h2 class="pd-title">${escapeHtml(p.nombre ?? "Sin nombre")}</h2>
+      <p class="reuse-confirm-msg">Esto crea un <strong>ciclo nuevo en F0</strong>, sembrado con el sub-perfil, la causa y la hipótesis de este patrón — pero <strong>sin confirmar</strong>. Reutilizar no salta ninguna fase ni gate: tendrás que re-confirmar el contexto antes de avanzar.</p>
+      <p class="reuse-confirm-note">No se puede deshacer, pero puedes borrar el ciclo después.</p>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-reuse="cancel">Cancelar</button>
+        <button type="button" class="primary-action" data-reuse="create">Crear ciclo</button>
+      </div>
+    </div>`);
+  overlay.querySelector('[data-reuse="cancel"]')?.addEventListener("click", overlay.close);
+  overlay.querySelector('[data-reuse="create"]')?.addEventListener("click", () => { overlay.close(); reusePattern(p.id); });
+}
+
 async function reusePattern(patternId) {
   try {
     const res = await apiFetch(`/api/patterns/${patternId}/reuse`, { method: "POST", headers: authHeaders() });
@@ -800,7 +821,7 @@ function renderPatternsList(list = patterns) {
     .join("");
 
   patternsList.querySelectorAll(".reuse-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => { e.stopPropagation(); reusePattern(btn.dataset.patternId); });
+    btn.addEventListener("click", (e) => { e.stopPropagation(); openReuseConfirm(btn.dataset.patternId); });
   });
   patternsList.querySelectorAll("[data-pattern-open]").forEach((card) => {
     card.addEventListener("click", () => openPatternDetail(card.dataset.patternOpen));
@@ -832,7 +853,7 @@ function openPatternDetail(id) {
       </div>
     </div>`);
   overlay.querySelector('[data-pd="close"]')?.addEventListener("click", overlay.close);
-  overlay.querySelector('[data-pd="reuse"]')?.addEventListener("click", () => { overlay.close(); reusePattern(p.id); });
+  overlay.querySelector('[data-pd="reuse"]')?.addEventListener("click", () => { overlay.close(); openReuseConfirm(p.id); });
   const origin = overlay.querySelector("[data-pd-origin]");
   if (origin) origin.addEventListener("click", () => {
     overlay.close();
