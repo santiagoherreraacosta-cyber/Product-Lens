@@ -949,17 +949,124 @@ async function loadAnalytics() {
 }
 
 function renderAnalytics(a) {
-  const tile = (label, value, hint) =>
-    `<div class="stat-tile"><span class="stat-value">${escapeHtml(String(value))}</span><span class="stat-label">${escapeHtml(label)}</span>${hint ? `<span class="stat-hint">${escapeHtml(hint)}</span>` : ""}</div>`;
+  const tile = (drill, label, value, hint) =>
+    `<button type="button" class="stat-tile" data-drill="${escapeHtml(drill)}" aria-expanded="false"><span class="stat-value">${escapeHtml(String(value))}</span><span class="stat-label">${escapeHtml(label)}</span>${hint ? `<span class="stat-hint">${escapeHtml(hint)}</span>` : ""}<span class="stat-drill-hint">Ver detalle</span></button>`;
   analyticsGrid.innerHTML = [
-    tile("Ciclos totales", a.cycles?.total ?? 0, `${a.cycles?.active ?? 0} en curso · ${a.cycles?.closed ?? 0} cerrados`),
-    tile("Rigor de gates", a.gates?.rigor != null ? `${a.gates.rigor}%` : "—", `${a.gates?.passed ?? 0} limpios · ${a.gates?.skippedWithRisk ?? 0} con riesgo`),
-    tile("Iteraciones", a.iterations ?? 0, "ciclos que re-diagnosticaron"),
-    tile("Patrones", a.patterns?.total ?? 0, `${a.patterns?.reused ?? 0} reutilizados`),
-    tile("Rechazos F0", a.behavior?.rejected ?? 0, "arranques por feature evitados"),
-    tile("Mensajes de chat", a.chat?.messages ?? 0, `${a.chat?.briefExtractions ?? 0} extracciones de brief`),
-    tile("Exports", a.exports?.attempted ?? 0, `${a.exports?.withAssumptions ?? 0} con supuestos`),
-  ].join("");
+    tile("ciclos_totales", "Ciclos totales", a.cycles?.total ?? 0, `${a.cycles?.active ?? 0} en curso · ${a.cycles?.closed ?? 0} cerrados`),
+    tile("rigor_gates", "Rigor de gates", a.gates?.rigor != null ? `${a.gates.rigor}%` : "—", `${a.gates?.passed ?? 0} limpios · ${a.gates?.skippedWithRisk ?? 0} con riesgo`),
+    tile("iteraciones", "Iteraciones", a.iterations ?? 0, "ciclos que re-diagnosticaron"),
+    tile("patrones", "Patrones", a.patterns?.total ?? 0, `${a.patterns?.reused ?? 0} reutilizados`),
+    tile("rechazos_f0", "Rechazos F0", a.behavior?.rejected ?? 0, "arranques por feature evitados"),
+    tile("mensajes_chat", "Mensajes de chat", a.chat?.messages ?? 0, `${a.chat?.briefExtractions ?? 0} extracciones de brief`),
+    tile("exports", "Exports", a.exports?.attempted ?? 0, `${a.exports?.withAssumptions ?? 0} con supuestos`),
+  ].join("") + `<div id="drillPanel" class="drill-panel" hidden></div>`;
+  analyticsGrid.querySelectorAll("[data-drill]").forEach((btn) => {
+    btn.addEventListener("click", () => openDrill(btn.dataset.drill, btn));
+  });
+}
+
+let drillActiveKey = null;
+async function openDrill(key, tile) {
+  const panel = document.getElementById("drillPanel");
+  if (!panel) return;
+  const tiles = analyticsGrid.querySelectorAll("[data-drill]");
+  // Toggle: segundo click en el mismo tile cierra.
+  if (drillActiveKey === key) {
+    drillActiveKey = null;
+    panel.hidden = true;
+    panel.replaceChildren();
+    tiles.forEach((t) => { t.classList.remove("is-active"); t.setAttribute("aria-expanded", "false"); });
+    return;
+  }
+  drillActiveKey = key;
+  tiles.forEach((t) => {
+    const on = t.dataset.drill === key;
+    t.classList.toggle("is-active", on);
+    t.setAttribute("aria-expanded", String(on));
+  });
+  // Mueve el panel justo debajo del tile clicado (misma fila visual).
+  tile.after(panel);
+  panel.hidden = false;
+  panel.replaceChildren(buildDrillNode({ loading: true }));
+  try {
+    const res = await apiFetch(`/api/analytics/drill?metric=${encodeURIComponent(key)}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const data = await res.json();
+    if (drillActiveKey !== key) return; // el usuario cambió de tile mientras cargaba
+    panel.replaceChildren(buildDrillNode(data));
+  } catch {
+    panel.replaceChildren(buildDrillNode({ error: true }));
+  }
+}
+
+// Construye el panel de drill con DOM APIs (sin innerHTML de datos dinámicos).
+function buildDrillNode(data) {
+  const wrap = document.createElement("div");
+  wrap.className = "drill-inner";
+  if (data.loading) {
+    const p = document.createElement("p");
+    p.className = "loading-state";
+    p.textContent = "Cargando…";
+    wrap.appendChild(p);
+    return wrap;
+  }
+  if (data.error) {
+    const p = document.createElement("p");
+    p.className = "error-state";
+    p.textContent = "No se pudo cargar el detalle.";
+    wrap.appendChild(p);
+    return wrap;
+  }
+  const head = document.createElement("p");
+  head.className = "drill-title";
+  head.textContent = data.label ?? "Detalle";
+  wrap.appendChild(head);
+  if (!data.items?.length) {
+    const empty = document.createElement("p");
+    empty.className = "drill-empty";
+    empty.textContent = "Ningún ciclo compone este número todavía.";
+    wrap.appendChild(empty);
+    return wrap;
+  }
+  const list = document.createElement("ul");
+  list.className = "drill-list";
+  data.items.forEach((item) => {
+    const li = document.createElement("li");
+    const isClickable = item.type === "cycle" || item.type === "pattern";
+    const row = document.createElement(isClickable ? "button" : "div");
+    row.className = `drill-item drill-item--${item.type}`;
+    if (isClickable) {
+      row.type = "button";
+      row.addEventListener("click", () => openDrillTarget(item));
+    }
+    const title = document.createElement("span");
+    title.className = "drill-item-title";
+    title.textContent = item.title ?? "";
+    row.appendChild(title);
+    if (item.subtitle) {
+      const sub = document.createElement("span");
+      sub.className = "drill-item-sub";
+      sub.textContent = item.subtitle;
+      row.appendChild(sub);
+    }
+    li.appendChild(row);
+    list.appendChild(li);
+  });
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function openDrillTarget(item) {
+  if (item.type === "cycle") {
+    const c = cycles.find((x) => x.id === item.id);
+    if (!c) { showToast("Ese ciclo ya no está disponible."); return; }
+    currentCycleId = c.id;
+    renderActiveCycle(); renderStepper(); loadMessages(c.id); setView("workspace");
+  } else if (item.type === "pattern") {
+    const p = patterns.find((x) => x.id === item.id);
+    if (p) openPatternDetail(p.id);
+    else { setView("library"); showToast("Abre el patrón desde la Biblioteca."); }
+  }
 }
 
 // --- Context ---

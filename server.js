@@ -371,6 +371,7 @@ const routePermissions = {
   "POST /api/patterns/reuse": AUTH,
   "GET /api/audit-events": AUTH,
   "GET /api/analytics": AUTH,
+  "GET /api/analytics/drill": AUTH,
   "POST /api/analytics/event": AUTH,
   "GET /api/decisions": AUTH,
   "POST /api/decisions": AUTH,
@@ -1032,6 +1033,55 @@ async function handle(req, res) {
       iterations: count("cycle_iterated"),
       generatedAt: new Date().toISOString(),
     });
+  }
+
+  // --- Analytics drill-down: qué ciclos/patrones/eventos componen cada métrica ---
+  if (req.method === "GET" && pathname === "/api/analytics/drill") {
+    const metric = String(url.searchParams.get("metric") ?? "").trim();
+    const all = Array.from(cycles.values());
+    const cycleTitle = (id) => cycles.get(id)?.title ?? id ?? "(ciclo eliminado)";
+    const estadoLabel = (c) => (c.estado === "cerrado" ? "Cerrado" : "En curso");
+    const cycleItem = (c, subtitle) => ({ type: "cycle", id: c.id, title: c.title ?? "(sin título)", subtitle });
+    const eventItems = (action, toItem) =>
+      auditEvents.filter((e) => e.action === action).map(toItem).reverse();
+    let label = metric;
+    let items = [];
+    switch (metric) {
+      case "ciclos_totales":
+        label = "Ciclos totales";
+        items = all.map((c) => cycleItem(c, `${estadoLabel(c)} · ${FASE_LABEL[c.fase_actual] ?? c.fase_actual ?? "F0"}`));
+        break;
+      case "rigor_gates":
+        label = "Gates cruzados con riesgo aceptado";
+        items = eventItems("gate_skipped_with_risk", (e) => ({
+          type: "cycle", id: e.resource, title: cycleTitle(e.resource),
+          subtitle: `Avanzó ${e.meta?.from ?? "?"} → ${e.meta?.to ?? "?"} sin cumplir el gate`,
+        }));
+        break;
+      case "iteraciones":
+        label = "Iteraciones (ciclos que re-diagnosticaron)";
+        items = all.filter((c) => c.iterated).map((c) => cycleItem(c, `${c.iterationCount ?? 1} iteración(es)`));
+        break;
+      case "patrones":
+        label = "Patrones destilados";
+        items = patterns.map((p) => ({ type: "pattern", id: p.id, title: p.nombre ?? p.name ?? "(sin nombre)", subtitle: `${p.tipo ?? "patron"} · ${p.veces_reutilizado ?? 0} reúso(s)` }));
+        break;
+      case "rechazos_f0":
+        label = "Rechazos F0 (arranques por feature evitados)";
+        items = eventItems("behavior_rejected", (e) => ({ type: "event", id: e.id, title: e.meta?.title ?? "(propuesta sin título)", subtitle: "Rechazado: era una solución, no un comportamiento" }));
+        break;
+      case "mensajes_chat":
+        label = "Ciclos con conversación";
+        items = all.filter((c) => (c.messages?.length ?? 0) > 0).map((c) => cycleItem(c, `${c.messages.length} mensaje(s)`));
+        break;
+      case "exports":
+        label = "Exports de entregable";
+        items = eventItems("export_attempted", (e) => ({ type: "event", id: e.id, title: cycleTitle(e.resource), subtitle: e.meta?.missingCount > 0 ? `${e.meta.missingCount} supuesto(s) sin confirmar` : "Sin supuestos pendientes" }));
+        break;
+      default:
+        return json(res, { error: "Métrica no reconocida" }, 400);
+    }
+    return json(res, { metric, label, items });
   }
 
   // Client-emitted analytics event (e.g. export_attempted) → append to audit log.
