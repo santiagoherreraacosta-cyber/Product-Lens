@@ -1043,7 +1043,7 @@ async function handle(req, res) {
     const estadoLabel = (c) => (c.estado === "cerrado" ? "Cerrado" : "En curso");
     const cycleItem = (c, subtitle) => ({ type: "cycle", id: c.id, title: c.title ?? "(sin título)", subtitle });
     const eventItems = (action, toItem) =>
-      auditEvents.filter((e) => e.action === action).map(toItem).reverse();
+      auditEvents.filter((e) => e.action === action).map((e) => toItem(e)).reverse();
     let label = metric;
     let items = [];
     switch (metric) {
