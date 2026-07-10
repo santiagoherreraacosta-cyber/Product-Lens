@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
+import { assembleSystemContext } from "./src/memory.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
 import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, SUB_PERFILES, TRANSITIONS, SUB_CAUSA } from "./src/doctrina.js";
@@ -188,21 +189,18 @@ function anthropicHeaders(apiKey) {
   return { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
 }
 
-// Conversation history (last 20 messages) + system prompt with cycle context.
-function buildChatContext(cycle) {
+// Conversation history (last 20 messages) + full layered context (PR-M1): método
+// + contexto de negocio + memoria del equipo (patrones) + portafolio de ciclos +
+// ciclo activo. `system` is an array of blocks (prompt caching on the stable prefix).
+async function buildChatContext(cycle) {
   const history = (cycle?.messages ?? []).slice(-20).map((m) => ({ role: m.role, content: m.content }));
-  const cycleCtx = cycle ? JSON.stringify({
-    fase: cycle.fase_actual ?? cycle.activePhase,
-    sub_perfil: cycle.sub_perfil,
-    transicion: cycle.transicion,
-    causa: cycle.causa,
-    causa_source: cycle.causa_source,
-    brief: cycle.brief,
-    riesgos: cycle.riesgos,
-    estado: cycle.estado,
-  }, null, 2) : null;
-  const systemWithCtx = cycleCtx ? `${systemPrompt}\n\n---\n## CICLO ACTIVO\n${cycleCtx}` : systemPrompt;
-  return { history, systemWithCtx };
+  const system = await assembleSystemContext({
+    systemPrompt,
+    cycle,
+    patterns,
+    cycles: Array.from(cycles.values()),
+  });
+  return { history, system };
 }
 
 // Extracts the text delta from one SSE data line, or null when the line is
@@ -846,7 +844,7 @@ async function handle(req, res) {
     }
 
     const cycle = cycleId ? cycles.get(cycleId) : null;
-    const { history, systemWithCtx } = buildChatContext(cycle);
+    const { history, system } = await buildChatContext(cycle);
 
     const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -854,7 +852,7 @@ async function handle(req, res) {
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
         max_tokens: 1024,
-        system: systemWithCtx,
+        system,
         messages: [...history, { role: "user", content: message }],
       }),
     });
@@ -904,7 +902,7 @@ async function handle(req, res) {
           await new Promise((r) => setTimeout(r, 15));
         }
       } else {
-        const { history, systemWithCtx } = buildChatContext(cycle);
+        const { history, system } = await buildChatContext(cycle);
         const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: anthropicHeaders(ANTHROPIC_API_KEY),
@@ -912,7 +910,7 @@ async function handle(req, res) {
             model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
             max_tokens: 1024,
             stream: true,
-            system: systemWithCtx,
+            system,
             messages: [...history, { role: "user", content: message }],
           }),
         });
