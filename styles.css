@@ -351,7 +351,12 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .sk-line { animation: none; } }
 
 
-.conversation-shell { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.conversation-shell { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+/* The workspace view must be a flex column that fills the shell so the message
+   stream scrolls internally and the chat composer stays pinned at the bottom.
+   Without min-height:0 the stream grows past the viewport (flexbox default
+   min-height:auto) and pushes the composer off-screen. */
+.workspace-view { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .conversation-header {
   align-items: center;
   border-bottom: 1px solid var(--border);
@@ -376,7 +381,7 @@ button { cursor: pointer; }
 .cycle-name { color: var(--text3); font-size: 13px; margin-right: auto; }
 .command-button { font-size: 12.5px; font-weight: 600; padding: 0 9px; }
 
-.message-stream { flex: 1; overflow-y: auto; padding: 22px; }
+.message-stream { flex: 1; min-height: 0; overflow-y: auto; padding: 22px; }
 .stream-inner { display: grid; gap: 18px; margin: 0 auto; max-width: 720px; }
 .user-message {
   align-self: end;

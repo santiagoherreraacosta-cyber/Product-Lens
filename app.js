@@ -1284,6 +1284,14 @@ async function applyChatResult(data) {
   if (currentCycleId) await refreshCycleAfterChat(data.changed);
 }
 
+// Keep the stream pinned to the newest content while it grows, but don't fight
+// the user if they've scrolled up to read (only follow when already near the end).
+function scrollStreamToBottom(force = false) {
+  if (!messageStream) return;
+  const nearBottom = messageStream.scrollHeight - messageStream.scrollTop - messageStream.clientHeight < 120;
+  if (force || nearBottom) messageStream.scrollTop = messageStream.scrollHeight;
+}
+
 async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
@@ -1305,7 +1313,7 @@ async function sendMessage() {
     "beforeend",
     `<article class="ai-message"><div class="ai-avatar">D</div><div class="ai-body"><p class="thinking"><span class="thinking-dots" aria-label="Pensando"><span></span><span></span><span></span></span></p></div></article>`
   );
-  messageStream.scrollTop = messageStream.scrollHeight;
+  scrollStreamToBottom(true);
   const thinkingEl = inner.querySelector(".ai-message:last-child .ai-body p");
 
   try {
@@ -1318,7 +1326,7 @@ async function sendMessage() {
     thinkingEl.classList.remove("thinking", "is-streaming");
     thinkingEl.textContent = "Error de conexión con el asistente.";
   }
-  messageStream.scrollTop = messageStream.scrollHeight;
+  scrollStreamToBottom(true);
 }
 
 // After a streamed chat turn, pull the updated cycle from the JSON API and
@@ -1367,7 +1375,7 @@ async function streamChat(text, liveEl) {
       // Plain text while streaming (no HTML sink on network data); the final
       // reply is Markdown-rendered once the stream completes.
       liveEl.textContent = reply;
-      messageStream.scrollTop = messageStream.scrollHeight;
+      scrollStreamToBottom();
     } else if (event === "done") {
       finalData = data;
     } else if (event === "error") {
