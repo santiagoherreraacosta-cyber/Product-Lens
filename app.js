@@ -949,9 +949,21 @@ async function loadAnalytics() {
 }
 
 function renderAnalytics(a) {
-  const tile = (drill, label, value, hint) =>
-    `<button type="button" class="stat-tile" data-drill="${escapeHtml(drill)}" aria-expanded="false"><span class="stat-value">${escapeHtml(String(value))}</span><span class="stat-label">${escapeHtml(label)}</span>${hint ? `<span class="stat-hint">${escapeHtml(hint)}</span>` : ""}<span class="stat-drill-hint">Ver detalle</span></button>`;
-  analyticsGrid.innerHTML = [
+  // DOM APIs (sin innerHTML) para no disparar el sink de "código arbitrario".
+  const span = (cls, text) => { const s = document.createElement("span"); s.className = cls; s.textContent = String(text); return s; };
+  const tile = (drill, label, value, hint) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "stat-tile";
+    btn.dataset.drill = drill;
+    btn.setAttribute("aria-expanded", "false");
+    btn.append(span("stat-value", value), span("stat-label", label));
+    if (hint) btn.append(span("stat-hint", hint));
+    btn.append(span("stat-drill-hint", "Ver detalle"));
+    btn.addEventListener("click", () => openDrill(drill, btn));
+    return btn;
+  };
+  analyticsGrid.replaceChildren(
     tile("ciclos_totales", "Ciclos totales", a.cycles?.total ?? 0, `${a.cycles?.active ?? 0} en curso · ${a.cycles?.closed ?? 0} cerrados`),
     tile("rigor_gates", "Rigor de gates", a.gates?.rigor != null ? `${a.gates.rigor}%` : "—", `${a.gates?.passed ?? 0} limpios · ${a.gates?.skippedWithRisk ?? 0} con riesgo`),
     tile("iteraciones", "Iteraciones", a.iterations ?? 0, "ciclos que re-diagnosticaron"),
@@ -959,10 +971,12 @@ function renderAnalytics(a) {
     tile("rechazos_f0", "Rechazos F0", a.behavior?.rejected ?? 0, "arranques por feature evitados"),
     tile("mensajes_chat", "Mensajes de chat", a.chat?.messages ?? 0, `${a.chat?.briefExtractions ?? 0} extracciones de brief`),
     tile("exports", "Exports", a.exports?.attempted ?? 0, `${a.exports?.withAssumptions ?? 0} con supuestos`),
-  ].join("") + `<div id="drillPanel" class="drill-panel" hidden></div>`;
-  analyticsGrid.querySelectorAll("[data-drill]").forEach((btn) => {
-    btn.addEventListener("click", () => openDrill(btn.dataset.drill, btn));
-  });
+  );
+  const panel = document.createElement("div");
+  panel.id = "drillPanel";
+  panel.className = "drill-panel";
+  panel.hidden = true;
+  analyticsGrid.append(panel);
 }
 
 let drillActiveKey = null;
