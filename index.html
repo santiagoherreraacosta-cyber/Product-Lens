@@ -225,12 +225,21 @@
         </section>
 
         <section id="contextView" class="app-view context-view scrim" hidden>
-          <aside class="toc" id="contextToc"><a href="#doctrina">Contexto Dropi</a></aside>
+          <aside class="toc" id="contextToc"><a href="#doctrina">Contexto Dropi</a><a href="#memoria">Memoria del equipo</a></aside>
           <article class="doc-body">
             <div id="contextPendingBanner" class="confirm-banner">Cargando contexto…</div>
             <h1 id="doctrina">Contexto Dropi</h1>
             <p>Base de conocimiento persistida, versionada y editable por admins.</p>
             <div id="contextDocuments" class="context-documents" aria-live="polite"></div>
+
+            <section class="ledger-section">
+              <div class="ledger-head">
+                <h2 id="memoria">Memoria del equipo · Decisiones y aprendizajes</h2>
+                <button id="addLearningBtn" class="primary-action" type="button">Guardar aprendizaje</button>
+              </div>
+              <p class="ledger-help">Se registran solos al cerrar un ciclo (decisión + aprendizaje). Aquí puedes añadir aprendizajes que no vienen de un ciclo. El asistente lee esta memoria en <strong>todos</strong> los ciclos.</p>
+              <div id="decisionsList" class="decisions-list" aria-live="polite"></div>
+            </section>
           </article>
         </section>
 

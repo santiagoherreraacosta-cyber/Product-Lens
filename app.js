@@ -873,8 +873,66 @@ function setView(view) {
   contextView.hidden = view !== "context";
   if (analyticsView) analyticsView.hidden = view !== "analytics";
   if (view === "context" && !contextLoaded) loadContextDocuments();
+  if (view === "context") loadDecisions();
   if (view === "library") renderPatternsList();
   if (view === "analytics") loadAnalytics();
+}
+
+// --- PR-M2 · Ledger de decisiones y aprendizajes ---
+async function loadDecisions() {
+  const list = document.getElementById("decisionsList");
+  if (!list) return;
+  try {
+    const res = await apiFetch("/api/decisions", { headers: authHeaders() });
+    if (!res.ok) return;
+    const items = await res.json();
+    list.innerHTML = items.length
+      ? items.map((d) => {
+          const fecha = d.fecha ? new Date(d.fecha).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" }) : "";
+          return `<div class="decision-item"><span class="decision-meta"><span class="decision-tipo">${escapeHtml(d.tipo ?? "aprendizaje")}</span>${escapeHtml(fecha)}</span><p>${escapeHtml(d.texto ?? "")}</p></div>`;
+        }).join("")
+      : `<p class="loading-state">Aún no hay decisiones ni aprendizajes. Se registran al cerrar ciclos o con "Guardar aprendizaje".</p>`;
+  } catch { /* silencioso */ }
+}
+
+function openLearningModal() {
+  const overlay = openModal("learningModal", `
+    <div class="export-modal-card">
+      <p class="eyebrow">Guardar aprendizaje</p>
+      <h2 class="pd-title">Añadir a la memoria del equipo</h2>
+      <p class="reuse-confirm-msg">Queda en el ledger durable y el asistente lo lee en todos los ciclos. Úsalo para aprendizajes o decisiones que no vienen de cerrar un ciclo.</p>
+      <label class="nc-label" for="learningTipo">Tipo</label>
+      <select id="learningTipo" class="nc-input">
+        <option value="aprendizaje">Aprendizaje</option>
+        <option value="decision">Decisión</option>
+        <option value="supuesto_validado">Supuesto validado</option>
+        <option value="supuesto_invalidado">Supuesto invalidado</option>
+      </select>
+      <label class="nc-label" for="learningTexto">¿Qué aprendimos / decidimos?</label>
+      <textarea id="learningTexto" class="nc-textarea" rows="4" placeholder="Ej: El Empleado Aspirante necesita prueba social antes de la 1ª compra — la fricción no era el problema."></textarea>
+      <p id="learningError" class="login-error" hidden></p>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-lm="cancel">Cancelar</button>
+        <button type="button" class="primary-action" data-lm="save">Guardar</button>
+      </div>
+    </div>`);
+  const q = (s) => overlay.querySelector(s);
+  q('[data-lm="cancel"]')?.addEventListener("click", overlay.close);
+  q('[data-lm="save"]')?.addEventListener("click", async () => {
+    const texto = (q("#learningTexto")?.value ?? "").trim();
+    if (!texto) { const e = q("#learningError"); if (e) { e.textContent = "Escribe el aprendizaje."; e.hidden = false; } return; }
+    try {
+      const res = await apiFetch("/api/decisions", {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ texto, tipo: q("#learningTipo")?.value || "aprendizaje", cycleId: currentCycleId || null }),
+      });
+      if (!res.ok) throw new Error();
+      overlay.close();
+      showToast("Aprendizaje guardado en la memoria del equipo ✓");
+      loadDecisions();
+    } catch { showToast("No se pudo guardar el aprendizaje.", true); }
+  });
+  setTimeout(() => q("#learningTexto")?.focus(), 30);
 }
 
 // --- Analytics (Fase 5) ---
@@ -2145,6 +2203,7 @@ viewButtons.forEach((button) => {
 });
 
 newCycleButton?.addEventListener("click", openNewCycleModal);
+document.getElementById("addLearningBtn")?.addEventListener("click", openLearningModal);
 newCycleEmpty?.addEventListener("click", openNewCycleModal);
 
 // Home filters (PR-1): status + cause compose with AND.
