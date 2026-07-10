@@ -1079,7 +1079,7 @@ function setDeliverable(next) {
   briefSwitch.classList.toggle("active", next === "brief");
   experimentSwitch.classList.toggle("active", next === "experiment");
   deliverableTitle.textContent = next === "brief" ? "Intervention Brief" : "Experiment Card";
-  progressText.textContent = next === "brief" ? `${filled} / 11 campos confirmados` : "0 / 9 campos confirmados";
+  progressText.textContent = next === "brief" ? `${filled} / 11 campos` : "0 / 9 campos";
   progressFill.style.width = next === "brief" ? `${Math.round((filled / 11) * 100)}%` : "0%";
 }
 
@@ -1527,8 +1527,8 @@ function renderBriefState() {
 
 function setBriefProgress(value) {
   filled = value;
-  progressText.textContent = `${filled} / 11 campos confirmados`;
-  progressText.title = "Haz click en cualquier campo [CONFIRMAR] del brief para confirmarlo";
+  progressText.textContent = `${filled} / 11 campos`;
+  progressText.title = "Campos con un valor confirmado. No necesitas todos para avanzar — cada gate pide solo los suyos.";
   progressFill.style.width = `${Math.round((filled / 11) * 100)}%`;
 }
 
@@ -1559,7 +1559,7 @@ function makeFieldEditable(el, cyclePath) {
   if (el.dataset.editableRegistered) return;
   el.dataset.editableRegistered = "1";
   el.style.cursor = "pointer";
-  el.title = "Click para editar";
+  el.title = "Clic para escribir o editar este campo";
   el.addEventListener("click", () => {
     if (el.dataset.editing) return;
     el.dataset.editing = "1";
@@ -1568,10 +1568,18 @@ function makeFieldEditable(el, cyclePath) {
     const input = document.createElement("input");
     input.className = "brief-inline-input";
     input.value = current;
+    input.placeholder = "Escribe aquí y presiona Enter…";
     el.replaceWith(input);
     input.focus();
+    let saved = false;
     const save = async () => {
+      if (saved) return; // guard: Enter blurs, which would fire save twice
+      saved = true;
       const val = input.value.trim();
+      // Restore the original <p> element so loadBriefFromCycle can find it by id
+      // and render the value with proper styling (not leave a raw input behind).
+      input.replaceWith(el);
+      delete el.dataset.editing;
       const patch = {};
       if (cyclePath === "sub_perfil" || cyclePath === "segmento_objetivo") {
         // Top-level scalar cycle fields (server normalizes sub_perfil to enum).
@@ -1583,7 +1591,7 @@ function makeFieldEditable(el, cyclePath) {
         cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
         try {
           await updateCycle(patch);
-          showToast("Campo guardado ✓");
+          if (val) showToast("Campo guardado ✓");
         } catch {
           showToast("Error al guardar el campo.", true);
         }
@@ -1606,7 +1614,8 @@ function setField(el, value) {
     el.classList.remove("confirm-field");
     el.classList.add("mono-value");
   } else {
-    el.innerHTML = "<strong>[CONFIRMAR]</strong>";
+    // Empty state: an actionable placeholder, not the "[CONFIRMAR]" jargon.
+    el.innerHTML = '<span class="field-cta">Clic para escribir</span>';
     el.classList.add("confirm-field");
     el.classList.remove("mono-value");
   }
