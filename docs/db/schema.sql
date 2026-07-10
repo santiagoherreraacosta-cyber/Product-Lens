@@ -1,97 +1,59 @@
--- Initial persistence schema for the Product Back Office.
--- Requires pgcrypto for gen_random_uuid().
+-- Schema de persistencia (Postgres) del Product Lens.
+-- NOTA: la app APLICA este schema automáticamente al arrancar con DATABASE_URL
+-- (ver src/persistence.js → CORE_SCHEMA / VECTOR_SCHEMA). Este archivo documenta
+-- la forma real. Modelo pragmático "documento en Postgres": una fila por entidad
+-- con columnas extraídas para consultar + `data` JSONB con el objeto completo
+-- (mapea 1:1 con el modelo en memoria del server, migración sin pérdida).
 
-BEGIN;
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE,
-  role TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
+-- Ciclos de decisión (F0–F5): brief, experimento, mensajes y riesgos viven en `data`.
 CREATE TABLE IF NOT EXISTS cycles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'draft',
-  active_phase TEXT NOT NULL DEFAULT 'F0',
-  sub_profile TEXT,
-  cognitive_transition TEXT,
-  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id           TEXT PRIMARY KEY,
+  title        TEXT,
+  estado       TEXT,           -- activo | cerrado | descartado
+  fase_actual  TEXT,           -- F0..F5
+  causa        TEXT,           -- M | A | P
+  sub_perfil   TEXT,
+  updated_at   TIMESTAMPTZ,
+  data         JSONB NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cycle_id UUID NOT NULL REFERENCES cycles(id) ON DELETE CASCADE,
-  role TEXT NOT NULL,
-  content TEXT NOT NULL,
-  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS briefs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cycle_id UUID NOT NULL UNIQUE REFERENCES cycles(id) ON DELETE CASCADE,
-  fields JSONB NOT NULL DEFAULT '{}'::jsonb,
-  progress_filled INTEGER NOT NULL DEFAULT 0 CHECK (progress_filled >= 0),
-  progress_total INTEGER NOT NULL DEFAULT 0 CHECK (progress_total >= 0),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (progress_filled <= progress_total)
-);
-
-CREATE TABLE IF NOT EXISTS experiments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cycle_id UUID NOT NULL REFERENCES cycles(id) ON DELETE CASCADE,
-  fields JSONB NOT NULL DEFAULT '{}'::jsonb,
-  status TEXT NOT NULL DEFAULT 'draft',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS risks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cycle_id UUID NOT NULL REFERENCES cycles(id) ON DELETE CASCADE,
-  phase TEXT NOT NULL,
-  text TEXT NOT NULL,
-  accepted_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  accepted_at TIMESTAMPTZ,
-  resolved_at TIMESTAMPTZ
-);
-
+-- Memoria del equipo: patrones y anti-patrones destilados al cerrar ciclos.
 CREATE TABLE IF NOT EXISTS patterns (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  source_cycle_id UUID REFERENCES cycles(id) ON DELETE SET NULL,
-  type TEXT NOT NULL,
-  name TEXT NOT NULL,
-  cause TEXT,
-  sub_profile TEXT,
-  cognitive_level TEXT,
-  learning TEXT NOT NULL,
-  evidence JSONB NOT NULL DEFAULT '[]'::jsonb,
-  reuse_count INTEGER NOT NULL DEFAULT 0 CHECK (reuse_count >= 0)
+  id          TEXT PRIMARY KEY,
+  tipo        TEXT,            -- patron | anti_patron
+  causa       TEXT,
+  sub_perfil  TEXT,
+  transicion  TEXT,
+  data        JSONB NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS context_documents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  section TEXT NOT NULL UNIQUE,
-  content TEXT NOT NULL,
-  has_confirm_pending BOOLEAN NOT NULL DEFAULT false,
-  updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+-- Ledger de decisiones y aprendizajes durables (PR-M2: captura estructurada).
+CREATE TABLE IF NOT EXISTS decisions (
+  id          TEXT PRIMARY KEY,
+  cycle_id    TEXT,
+  fecha       TIMESTAMPTZ,
+  tipo        TEXT,            -- decision | aprendizaje | supuesto_validado | supuesto_invalidado
+  causa       TEXT,
+  sub_perfil  TEXT,
+  texto       TEXT,
+  actor       TEXT,
+  data        JSONB NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_cycles_created_by ON cycles(created_by);
-CREATE INDEX IF NOT EXISTS idx_cycles_status ON cycles(status);
-CREATE INDEX IF NOT EXISTS idx_messages_cycle_id_created_at ON messages(cycle_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_experiments_cycle_id ON experiments(cycle_id);
-CREATE INDEX IF NOT EXISTS idx_risks_cycle_id ON risks(cycle_id);
-CREATE INDEX IF NOT EXISTS idx_patterns_source_cycle_id ON patterns(source_cycle_id);
-CREATE INDEX IF NOT EXISTS idx_context_documents_updated_by ON context_documents(updated_by);
+CREATE INDEX IF NOT EXISTS idx_cycles_estado ON cycles(estado);
+CREATE INDEX IF NOT EXISTS idx_patterns_causa_sub ON patterns(causa, sub_perfil);
+CREATE INDEX IF NOT EXISTS idx_decisions_cycle ON decisions(cycle_id);
 
-COMMIT;
+-- Búsqueda semántica de la memoria (PR-M3). Requiere pgvector; si la imagen no lo
+-- trae, la app omite esta parte y sigue funcionando (search semántico pospuesto).
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE IF NOT EXISTS memory_embeddings (
+  id         TEXT PRIMARY KEY,
+  kind       TEXT NOT NULL,    -- pattern | decision | cycle
+  ref_id     TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  embedding  vector(1536)
+);
+
+-- audit_events y context_documents permanecen en JSON sobre el Volume por ahora
+-- (curados / append-heavy). Migración de esos: follow-up.

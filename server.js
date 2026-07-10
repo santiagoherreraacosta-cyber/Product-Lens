@@ -6,6 +6,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
 import { assembleSystemContext } from "./src/memory.js";
+import { initStore, load as storeLoad, save as storeSave } from "./src/persistence.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
 import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, SUB_PERFILES, TRANSITIONS, SUB_CAUSA } from "./src/doctrina.js";
@@ -69,26 +70,19 @@ async function seedDataDir() {
   }
 }
 
-// Load persisted data at startup (best-effort; missing files are expected on first run)
+// Load persisted data at startup, via the persistence layer (JSON o Postgres,
+// según DATABASE_URL). seedDataDir sigue sembrando los JSON del Volume (incluye
+// context_documents) y sirve de fuente para el auto-import a Postgres.
 async function loadData() {
   await seedDataDir();
+  const info = await initStore();
+  console.log("Persistencia:", info.backend);
   try {
-    const raw = await fs.readFile(path.join(DATA_DIR, "audit_events.json"), "utf8");
-    auditEvents = JSON.parse(raw);
+    auditEvents = await storeLoad("audit_events");
+    patterns = await storeLoad("patterns");
+    (await storeLoad("cycles")).forEach((c) => cycles.set(c.id, c));
   } catch (err) {
-    if (err.code !== "ENOENT") console.warn("Could not load audit_events.json:", err.message);
-  }
-  try {
-    const raw = await fs.readFile(path.join(DATA_DIR, "patterns.json"), "utf8");
-    patterns = JSON.parse(raw);
-  } catch (err) {
-    if (err.code !== "ENOENT") console.warn("Could not load patterns.json:", err.message);
-  }
-  try {
-    const raw = await fs.readFile(path.join(DATA_DIR, "cycles.json"), "utf8");
-    JSON.parse(raw).forEach((c) => cycles.set(c.id, c));
-  } catch (err) {
-    if (err.code !== "ENOENT") console.warn("Could not load cycles.json:", err.message);
+    console.warn("Could not load persisted data:", err.message);
   }
   try {
     systemPrompt = await fs.readFile(path.join(ROOT, "00_Orquestador.md"), "utf8");
@@ -99,23 +93,23 @@ async function loadData() {
 
 async function persistAuditEvents() {
   try {
-    await fs.writeFile(path.join(DATA_DIR, "audit_events.json"), JSON.stringify(auditEvents, null, 2));
+    await storeSave("audit_events", auditEvents);
   } catch (err) {
-    console.warn("Could not persist audit_events.json:", err.message);
+    console.warn("Could not persist audit_events:", err.message);
   }
 }
 
 async function persistPatterns() {
   try {
-    await fs.writeFile(path.join(DATA_DIR, "patterns.json"), JSON.stringify(patterns, null, 2));
+    await storeSave("patterns", patterns);
   } catch (err) {
-    console.warn("Could not persist patterns.json:", err.message);
+    console.warn("Could not persist patterns:", err.message);
   }
 }
 
 async function persistCycles() {
   try {
-    await fs.writeFile(path.join(DATA_DIR, "cycles.json"), JSON.stringify(Array.from(cycles.values()), null, 2));
+    await storeSave("cycles", Array.from(cycles.values()));
   } catch (err) {
     console.warn("Could not persist cycles.json:", err.message);
   }
