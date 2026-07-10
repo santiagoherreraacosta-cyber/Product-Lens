@@ -1,7 +1,7 @@
 // Unit tests for the context assembler (PR-M1 · Contexto total).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { patternDigest, cyclesIndex, assembleSystemContext } from "../../src/memory.js";
+import { patternDigest, cyclesIndex, decisionsDigest, assembleSystemContext } from "../../src/memory.js";
 
 test("patternDigest renders one line per pattern with tipo/causa/sub-perfil/aprendizaje", () => {
   const out = patternDigest([
@@ -29,6 +29,31 @@ test("cyclesIndex lists other cycles and excludes the active one", () => {
   assert.doesNotMatch(out, /Recompra día 7/); // active excluded
   assert.match(out, /Activación post-Aha/);
   assert.match(out, /cerrado → escalado/);
+});
+
+test("decisionsDigest renders newest-first with tipo/causa/texto", () => {
+  const out = decisionsDigest([
+    { fecha: "2026-07-01T00:00:00Z", tipo: "decision", causa: "A", texto: "Escalar checklist 72h" },
+    { fecha: "2026-07-05T00:00:00Z", tipo: "aprendizaje", sub_perfil: "empleado_aspirante", texto: "Necesita prueba social" },
+  ]);
+  // newest first
+  assert.ok(out.indexOf("Necesita prueba social") < out.indexOf("Escalar checklist 72h"));
+  assert.match(out, /\[decision\]/);
+  assert.match(out, /Empleado Aspirante/);
+});
+
+test("decisionsDigest handles empty ledger", () => {
+  assert.match(decisionsDigest([]), /Aún no hay decisiones/);
+});
+
+test("assembleSystemContext includes the decisions block", async () => {
+  const blocks = await assembleSystemContext({
+    systemPrompt: "M", businessContext: "N",
+    decisions: [{ fecha: "2026-07-05T00:00:00Z", tipo: "aprendizaje", texto: "Prueba social gana" }],
+  });
+  const memoria = blocks[blocks.length - 1].text;
+  assert.match(memoria, /DECISIONES Y APRENDIZAJES/);
+  assert.match(memoria, /Prueba social gana/);
 });
 
 test("assembleSystemContext orders blocks stable→volatile and caches the stable prefix", async () => {

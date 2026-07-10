@@ -40,6 +40,7 @@ const cycles = new Map();
 const rateBuckets = new Map();
 let auditEvents = [];
 let patterns = [];
+let decisions = []; // PR-M2 · ledger durable de decisiones y aprendizajes
 let systemPrompt = "";
 
 // Seed DATA_DIR from the bundled data/ on first boot. When DATA_DIR points at a
@@ -80,6 +81,7 @@ async function loadData() {
   try {
     auditEvents = await storeLoad("audit_events");
     patterns = await storeLoad("patterns");
+    decisions = await storeLoad("decisions");
     (await storeLoad("cycles")).forEach((c) => cycles.set(c.id, c));
   } catch (err) {
     console.warn("Could not load persisted data:", err.message);
@@ -105,6 +107,32 @@ async function persistPatterns() {
   } catch (err) {
     console.warn("Could not persist patterns:", err.message);
   }
+}
+
+async function persistDecisions() {
+  try {
+    await storeSave("decisions", decisions);
+  } catch (err) {
+    console.warn("Could not persist decisions:", err.message);
+  }
+}
+
+// PR-M2 · registra una entrada en el ledger durable (captura estructurada).
+// El LLM no escribe libre: solo el cierre de ciclo (auto) y el PM (manual) llaman aquí.
+function recordDecision({ cycleId = null, tipo = "aprendizaje", causa = null, sub_perfil = null, texto, actor = null }) {
+  const entry = {
+    id: `dec-${crypto.randomUUID()}`,
+    cycleId,
+    fecha: new Date().toISOString(),
+    tipo,
+    causa,
+    sub_perfil,
+    texto: String(texto ?? "").trim(),
+    actor,
+  };
+  decisions.push(entry);
+  void persistDecisions();
+  return entry;
 }
 
 async function persistCycles() {
@@ -193,6 +221,7 @@ async function buildChatContext(cycle) {
     cycle,
     patterns,
     cycles: Array.from(cycles.values()),
+    decisions,
   });
   return { history, system };
 }
@@ -343,6 +372,8 @@ const routePermissions = {
   "GET /api/audit-events": AUTH,
   "GET /api/analytics": AUTH,
   "POST /api/analytics/event": AUTH,
+  "GET /api/decisions": AUTH,
+  "POST /api/decisions": AUTH,
 };
 
 function getRouteKey(method, pathname) {
@@ -641,6 +672,8 @@ async function handle(req, res) {
         };
         cycles.set(cycleId, iterated);
         void persistCycles();
+        recordDecision({ cycleId, tipo: "decision", causa: cycle.causa, sub_perfil: cycle.sub_perfil,
+          texto: `Iterar (iteración ${iterated.iterationCount}) en "${cycle.title}": de vuelta a F1 para re-diagnosticar.`, actor: currentUser?.email });
         logAudit(currentUser?.email, "cycle_iterated", cycleId, { iterationCount: iterated.iterationCount });
         return json(res, { cycle: iterated, iterated: true });
       }
@@ -719,6 +752,10 @@ async function handle(req, res) {
       patterns.push(newPattern);
       void persistCycles();
       void persistPatterns();
+      // Captura estructurada: la decisión + aprendizaje entran al ledger durable
+      // (además del patrón) para que el asistente lo lea en todos los ciclos.
+      recordDecision({ cycleId, tipo: "decision", causa: cycle.causa, sub_perfil: cycle.sub_perfil,
+        texto: `${decision ?? "[CONFIRMAR]"} "${cycle.title}": ${body.learning.trim()}${body.delta?.trim() ? ` (${body.delta.trim()})` : ""}`, actor: currentUser?.email });
       logAudit(currentUser?.email, "cycle_closed", cycleId, { patternId });
       logAudit(currentUser?.email, "pattern_created", patternId, { type: newPattern.tipo, cause: newPattern.causa });
       return json(res, { cycle: closedCycle, pattern: newPattern, peeking });
@@ -945,6 +982,26 @@ async function handle(req, res) {
   if (req.method === "GET" && pathname === "/api/audit-events") {
     const limit = parseInt(url.searchParams.get("limit") || "100", 10);
     return json(res, auditEvents.slice(-limit).reverse());
+  }
+
+  // --- Decisions ledger (PR-M2) ---
+  if (req.method === "GET" && pathname === "/api/decisions") {
+    return json(res, decisions.slice().reverse());
+  }
+  if (req.method === "POST" && pathname === "/api/decisions") {
+    const body = await readBody(req);
+    const texto = String(body.texto ?? "").trim();
+    if (!texto) return json(res, { error: "texto required" }, 400);
+    const entry = recordDecision({
+      cycleId: body.cycleId ?? null,
+      tipo: body.tipo ?? "aprendizaje",
+      causa: body.causa ?? null,
+      sub_perfil: body.sub_perfil ?? null,
+      texto,
+      actor: currentUser?.email,
+    });
+    logAudit(currentUser?.email, "decision_recorded", entry.cycleId || "global", { tipo: entry.tipo });
+    return json(res, entry, 201);
   }
 
   // --- Analytics: aggregate the process metrics from the audit log (Fase 5) ---

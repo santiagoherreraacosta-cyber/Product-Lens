@@ -24,6 +24,17 @@ export function patternDigest(patterns = []) {
   }).join("\n");
 }
 
+// Ledger de decisiones y aprendizajes durables (PR-M2), lo más reciente primero.
+export function decisionsDigest(decisions = [], limit = 30) {
+  if (!decisions.length) return "Aún no hay decisiones ni aprendizajes registrados.";
+  return decisions.slice(-limit).reverse().map((d) => {
+    const fecha = d.fecha ? String(d.fecha).slice(0, 10) : "";
+    const causa = d.causa ? ` · ${causeLabel(d.causa)}` : "";
+    const sub = d.sub_perfil ? ` · ${subPerfilLabel(d.sub_perfil)}` : "";
+    return `- (${fecha}) [${d.tipo ?? "aprendizaje"}]${causa}${sub}: ${d.texto ?? ""}`;
+  }).join("\n");
+}
+
 // Índice compacto de los demás ciclos (portafolio): título · fase · causa · estado · decisión.
 export function cyclesIndex(cycles = [], activeId = null) {
   const others = cycles.filter((c) => c.id !== activeId);
@@ -69,7 +80,7 @@ export async function businessContextBlock() {
 
 // Ensambla los bloques del "system" (array para prompt caching): estable→volátil.
 // `businessContext` puede inyectarse (tests); si no, se lee del contextStore.
-export async function assembleSystemContext({ systemPrompt, cycle, patterns = [], cycles = [], businessContext } = {}) {
+export async function assembleSystemContext({ systemPrompt, cycle, patterns = [], cycles = [], decisions = [], businessContext } = {}) {
   let negocio = businessContext;
   if (negocio === undefined) {
     try { negocio = await businessContextBlock(); } catch { negocio = ""; }
@@ -85,6 +96,7 @@ export async function assembleSystemContext({ systemPrompt, cycle, patterns = []
 
   const memoria = [
     `## MEMORIA DEL EQUIPO — PATRONES Y ANTI-PATRONES\nAntes de proponer una intervención, revisa si ya existe un patrón (o anti-patrón) aplicable a este sub-perfil/causa y díselo al usuario.\n${patternDigest(patterns)}`,
+    `## DECISIONES Y APRENDIZAJES\n${decisionsDigest(decisions)}`,
     `## OTROS CICLOS (portafolio)\n${cyclesIndex(cycles, cycle?.id)}`,
   ];
   const active = activeCycleBlock(cycle);
