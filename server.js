@@ -5,6 +5,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
+import { assembleSystemContext } from "./src/memory.js";
+import { initStore, load as storeLoad, save as storeSave } from "./src/persistence.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
 import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, SUB_PERFILES, TRANSITIONS, SUB_CAUSA } from "./src/doctrina.js";
@@ -68,26 +70,19 @@ async function seedDataDir() {
   }
 }
 
-// Load persisted data at startup (best-effort; missing files are expected on first run)
+// Load persisted data at startup, via the persistence layer (JSON o Postgres,
+// según DATABASE_URL). seedDataDir sigue sembrando los JSON del Volume (incluye
+// context_documents) y sirve de fuente para el auto-import a Postgres.
 async function loadData() {
   await seedDataDir();
+  const info = await initStore();
+  console.log("Persistencia:", info.backend);
   try {
-    const raw = await fs.readFile(path.join(DATA_DIR, "audit_events.json"), "utf8");
-    auditEvents = JSON.parse(raw);
+    auditEvents = await storeLoad("audit_events");
+    patterns = await storeLoad("patterns");
+    (await storeLoad("cycles")).forEach((c) => cycles.set(c.id, c));
   } catch (err) {
-    if (err.code !== "ENOENT") console.warn("Could not load audit_events.json:", err.message);
-  }
-  try {
-    const raw = await fs.readFile(path.join(DATA_DIR, "patterns.json"), "utf8");
-    patterns = JSON.parse(raw);
-  } catch (err) {
-    if (err.code !== "ENOENT") console.warn("Could not load patterns.json:", err.message);
-  }
-  try {
-    const raw = await fs.readFile(path.join(DATA_DIR, "cycles.json"), "utf8");
-    JSON.parse(raw).forEach((c) => cycles.set(c.id, c));
-  } catch (err) {
-    if (err.code !== "ENOENT") console.warn("Could not load cycles.json:", err.message);
+    console.warn("Could not load persisted data:", err.message);
   }
   try {
     systemPrompt = await fs.readFile(path.join(ROOT, "00_Orquestador.md"), "utf8");
@@ -98,23 +93,23 @@ async function loadData() {
 
 async function persistAuditEvents() {
   try {
-    await fs.writeFile(path.join(DATA_DIR, "audit_events.json"), JSON.stringify(auditEvents, null, 2));
+    await storeSave("audit_events", auditEvents);
   } catch (err) {
-    console.warn("Could not persist audit_events.json:", err.message);
+    console.warn("Could not persist audit_events:", err.message);
   }
 }
 
 async function persistPatterns() {
   try {
-    await fs.writeFile(path.join(DATA_DIR, "patterns.json"), JSON.stringify(patterns, null, 2));
+    await storeSave("patterns", patterns);
   } catch (err) {
-    console.warn("Could not persist patterns.json:", err.message);
+    console.warn("Could not persist patterns:", err.message);
   }
 }
 
 async function persistCycles() {
   try {
-    await fs.writeFile(path.join(DATA_DIR, "cycles.json"), JSON.stringify(Array.from(cycles.values()), null, 2));
+    await storeSave("cycles", Array.from(cycles.values()));
   } catch (err) {
     console.warn("Could not persist cycles.json:", err.message);
   }
@@ -188,21 +183,18 @@ function anthropicHeaders(apiKey) {
   return { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
 }
 
-// Conversation history (last 20 messages) + system prompt with cycle context.
-function buildChatContext(cycle) {
+// Conversation history (last 20 messages) + full layered context (PR-M1): método
+// + contexto de negocio + memoria del equipo (patrones) + portafolio de ciclos +
+// ciclo activo. `system` is an array of blocks (prompt caching on the stable prefix).
+async function buildChatContext(cycle) {
   const history = (cycle?.messages ?? []).slice(-20).map((m) => ({ role: m.role, content: m.content }));
-  const cycleCtx = cycle ? JSON.stringify({
-    fase: cycle.fase_actual ?? cycle.activePhase,
-    sub_perfil: cycle.sub_perfil,
-    transicion: cycle.transicion,
-    causa: cycle.causa,
-    causa_source: cycle.causa_source,
-    brief: cycle.brief,
-    riesgos: cycle.riesgos,
-    estado: cycle.estado,
-  }, null, 2) : null;
-  const systemWithCtx = cycleCtx ? `${systemPrompt}\n\n---\n## CICLO ACTIVO\n${cycleCtx}` : systemPrompt;
-  return { history, systemWithCtx };
+  const system = await assembleSystemContext({
+    systemPrompt,
+    cycle,
+    patterns,
+    cycles: Array.from(cycles.values()),
+  });
+  return { history, system };
 }
 
 // Extracts the text delta from one SSE data line, or null when the line is
@@ -846,7 +838,7 @@ async function handle(req, res) {
     }
 
     const cycle = cycleId ? cycles.get(cycleId) : null;
-    const { history, systemWithCtx } = buildChatContext(cycle);
+    const { history, system } = await buildChatContext(cycle);
 
     const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -854,7 +846,7 @@ async function handle(req, res) {
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
         max_tokens: 1024,
-        system: systemWithCtx,
+        system,
         messages: [...history, { role: "user", content: message }],
       }),
     });
@@ -904,7 +896,7 @@ async function handle(req, res) {
           await new Promise((r) => setTimeout(r, 15));
         }
       } else {
-        const { history, systemWithCtx } = buildChatContext(cycle);
+        const { history, system } = await buildChatContext(cycle);
         const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: anthropicHeaders(ANTHROPIC_API_KEY),
@@ -912,7 +904,7 @@ async function handle(req, res) {
             model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
             max_tokens: 1024,
             stream: true,
-            system: systemWithCtx,
+            system,
             messages: [...history, { role: "user", content: message }],
           }),
         });
