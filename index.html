@@ -153,11 +153,11 @@
               <div class="field-group">
                 <label id="decisionLabel">Decisión</label>
                 <div id="decisionPicker" class="decision-picker" role="group" aria-labelledby="decisionLabel">
-                  <button type="button" class="dp-btn active" data-decision="escalado">Escalar</button>
-                  <button type="button" class="dp-btn" data-decision="matado">Matar</button>
-                  <button type="button" class="dp-btn" data-decision="iterando">Iterar</button>
+                  <button type="button" class="dp-btn active" data-decision="escalar">Escalar</button>
+                  <button type="button" class="dp-btn" data-decision="matar">Matar</button>
+                  <button type="button" class="dp-btn" data-decision="iterar">Iterar</button>
                 </div>
-                <input type="hidden" id="closureDecision" value="escalado" />
+                <input type="hidden" id="closureDecision" value="escalar" />
               </div>
               <div class="field-group">
                 <label for="closureDelta">Delta métrica</label>
@@ -219,7 +219,7 @@
             <button class="filter cause-filter ability" data-filter="a"><span></span>Ability</button>
             <button class="filter cause-filter prompt" data-filter="p"><span></span>Prompt</button>
             <select id="patternSubProfile" class="filter-select" aria-label="Sub-perfil"><option value="">Sub-perfil</option></select>
-            <select id="patternLevel" class="filter-select" aria-label="Nivel cognitivo"><option value="">Nivel cognitivo</option></select>
+            <select id="patternLevel" class="filter-select" aria-label="Transición cognitiva"><option value="">Transición cognitiva</option></select>
           </div>
           <div id="patternsList" class="pattern-grid" aria-live="polite"></div>
         </section>
@@ -298,7 +298,7 @@
               <select id="briefSubProfile" class="filter-select"></select>
             </div>
             <div class="brief-block">
-              <label class="section-label" for="briefCogLevel">Nivel cognitivo</label>
+              <label class="section-label" for="briefCogLevel">Transición cognitiva</label>
               <select id="briefCogLevel" class="filter-select"></select>
             </div>
           </div>
@@ -325,6 +325,12 @@
             <p id="secondSource" class="confirm-field"><span class="field-cta">Clic para escribir la 2ª fuente</span></p>
             <p class="field-hint">Una fuente distinta que confirma lo mismo. Ej: "encuesta de soporte: no saben que deben hacerlo".</p>
             <p class="lock-note">🔒 Se habilita en F1 · Diagnóstico</p>
+          </div>
+          <div class="brief-block phase-gated" data-unlock-phase="F2">
+            <p class="section-label">Intervención</p>
+            <p id="briefIntervention" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <p class="field-hint">El cambio mínimo diseñado sobre la causa confirmada. Ej: "checklist post-compra con el siguiente paso explícito".</p>
+            <p class="lock-note">🔒 Se habilita en F2 · Intervención</p>
           </div>
           <div class="brief-block phase-gated" data-unlock-phase="F2">
             <p class="section-label">Hipótesis de intervención</p>

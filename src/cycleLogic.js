@@ -1,7 +1,7 @@
 // Core cycle logic extracted from server.js so it can be unit-tested in
 // isolation (B7 — closes the "untested core logic" debt). These functions are
 // pure: no I/O, no globals.
-import { normalizeSubPerfil, normalizeTransition, normalizeCausa, normalizeSubCausa } from "./doctrina.js";
+import { normalizeTransition, normalizeCausa, normalizeSubCausa } from "./doctrina.js";
 
 // Recursively merges `source` into `target`. Plain objects merge key-by-key;
 // arrays and primitives replace. This is what fixes the brief-wipe bug: a
@@ -34,13 +34,14 @@ export function looksLikeFeature(title) {
   return FEATURE_TERMS.some((term) => t.includes(term));
 }
 
-export const BRIEF_FIELD_KEYS = ["behavior_statement", "evidencia_primaria", "segunda_fuente", "hipotesis", "senal_cuantitativa"];
-export const CYCLE_TOP_KEYS = ["sub_perfil", "transicion", "causa", "segmento_objetivo"];
+export const BRIEF_FIELD_KEYS = ["behavior_statement", "evidencia_primaria", "segunda_fuente", "intervencion", "hipotesis", "senal_cuantitativa"];
+export const CYCLE_TOP_KEYS = ["transicion", "causa", "segmento_objetivo"];
 
 // Enums de doctrina: lo que el LLM sugiere para estos campos se normaliza a
 // keys canónicas; un valor fuera de doctrina se descarta (no se guarda basura).
+// sub_perfil NO está aquí a propósito: doctrina §3 prohíbe la auto-sugerencia
+// por texto — el PM lo elige a mano según el dato real de órdenes/mes.
 const TOP_KEY_NORMALIZERS = {
-  sub_perfil: normalizeSubPerfil,
   transicion: normalizeTransition,
   causa: normalizeCausa,
 };

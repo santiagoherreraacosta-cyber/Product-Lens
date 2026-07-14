@@ -431,7 +431,7 @@ function cycleCardHtml(cycle) {
     causeLabel ? `<span class="chip cause-chip ${escapeHtml(cycle.causa)}">${escapeHtml(causeLabel)}</span>` : "",
   ].join("");
   const statusPill = cycle.estado === "cerrado"
-    ? `<span class="status-pill closed">${cycle.resultado_cierre === "matado" ? "✗ Matado" : cycle.resultado_cierre === "iterando" ? "↻ Iterando" : "✓ Escalado"}</span>`
+    ? `<span class="status-pill closed">${cycle.resultado_cierre === "matar" ? "✗ Matado" : cycle.resultado_cierre === "iterar" ? "↻ Iterando" : "✓ Escalado"}</span>`
     : cycle.estado === "descartado"
       ? '<span class="status-pill discarded">Descartado</span>'
       : '<span class="status-pill live">En curso</span>';
@@ -673,8 +673,8 @@ async function closeCycle() {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
-        resultado_cierre: closureDecision?.value ?? "escalado",
-        decision: closureDecision?.value ?? "escalado",
+        resultado_cierre: closureDecision?.value ?? "escalar",
+        decision: closureDecision?.value ?? "escalar",
         learning,
         delta: closureDelta?.value.trim() ?? null,
         pattern_name,
@@ -1678,11 +1678,15 @@ function renderBriefState() {
   setDeliverable(deliverable);
 }
 
+// 10 campos confirmables del Brief (sub_causa queda fuera: es opcional/secundaria
+// por doctrina §1, "no maneja el filtro"). Debe coincidir con lo que cuenta
+// loadBriefFromCycle más abajo.
+const BRIEF_PROGRESS_TOTAL = 10;
 function setBriefProgress(value) {
-  filled = value;
-  progressText.textContent = `${filled} / 11 campos`;
+  filled = Math.min(value, BRIEF_PROGRESS_TOTAL);
+  progressText.textContent = `${filled} / ${BRIEF_PROGRESS_TOTAL} campos`;
   progressText.title = "Campos con un valor confirmado. No necesitas todos para avanzar — cada gate pide solo los suyos.";
-  progressFill.style.width = `${Math.round((filled / 11) * 100)}%`;
+  progressFill.style.width = `${Math.round((filled / BRIEF_PROGRESS_TOTAL) * 100)}%`;
 }
 
 // --- Deep merge and path utilities ---
@@ -1780,9 +1784,11 @@ const BRIEF_FIELD_TO_EL = {
   "brief.behavior_statement": "briefBehavior",
   "brief.evidencia_primaria": "briefEvidence",
   "brief.segunda_fuente": "secondSource",
+  "brief.intervencion": "briefIntervention",
   "brief.hipotesis": "hypothesisField",
   "brief.senal_cuantitativa": "metricField",
-  "sub_perfil": "briefSubProfile",
+  // sub_perfil no está aquí: doctrina §3 prohíbe la auto-sugerencia por texto —
+  // el LLM nunca lo devuelve, el PM lo elige a mano en el <select>.
   "transicion": "briefCogLevel",
   "causa": "briefCause",
   "segmento_objetivo": "briefSegment",
@@ -1807,6 +1813,7 @@ function loadBriefFromCycle(cycle) {
   const briefSubProfile = document.querySelector("#briefSubProfile");
   const briefCogLevel = document.querySelector("#briefCogLevel");
   const briefEvidence = document.querySelector("#briefEvidence");
+  const briefIntervention = document.querySelector("#briefIntervention");
 
   setField(briefBehavior, b.behavior_statement?.value ?? null);
   if (briefSubProfile) briefSubProfile.innerHTML = subPerfilOptions(cycle?.sub_perfil ?? "");
@@ -1815,7 +1822,8 @@ function loadBriefFromCycle(cycle) {
   setField(briefSegment, cycle?.segmento_objetivo ?? null);
   setField(briefEvidence, b.evidencia_primaria?.value ?? null);
   setField(secondSource, b.segunda_fuente?.value ?? null);
-  setField(hypothesisField, b.hipotesis?.value ?? b.intervencion?.value ?? null);
+  setField(briefIntervention, b.intervencion?.value ?? null);
+  setField(hypothesisField, b.hipotesis?.value ?? null);
   setField(metricField, b.senal_cuantitativa?.value ?? null);
 
   // B=MAP selector sync
@@ -1855,6 +1863,7 @@ function loadBriefFromCycle(cycle) {
   makeFieldEditable(briefSegment, "segmento_objetivo");
   makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
   makeFieldEditable(secondSource, "brief.segunda_fuente");
+  makeFieldEditable(briefIntervention, "brief.intervencion");
   makeFieldEditable(hypothesisField, "brief.hipotesis");
   makeFieldEditable(metricField, "brief.senal_cuantitativa");
 
@@ -1867,16 +1876,16 @@ function loadBriefFromCycle(cycle) {
   makeFieldEditable(expDuration, "experiment.duracion");
   makeFieldEditable(expTracking, "experiment.tracking_eventos");
 
-  // Progress: count confirmed fields (max 11)
-  const trackFields = [
-    b.behavior_statement, b.nivel_cognitivo, b.causa,
-    b.evidencia_primaria, b.segunda_fuente, b.hipotesis, b.senal_cuantitativa,
-  ];
-  let cnt = trackFields.filter((f) => f?.confirmed).length;
+  // Progress: count confirmed brief sub-objects + filled top-level scalars.
+  // causa cuenta UNA vez vía cycle.causa (no también vía brief.causa.confirmed,
+  // que se escribe en paralelo) para no duplicar el mismo dato.
+  const confirmedFields = [b.behavior_statement, b.senal_cuantitativa, b.evidencia_primaria, b.segunda_fuente, b.intervencion, b.hipotesis];
+  let cnt = confirmedFields.filter((f) => f?.confirmed).length;
+  if (cycle?.segmento_objetivo) cnt++;
   if (cycle?.sub_perfil) cnt++;
   if (cycle?.transicion) cnt++;
   if (cycle?.causa) cnt++;
-  setBriefProgress(Math.min(cnt, 11));
+  setBriefProgress(cnt);
 
   applyPhaseGating(cycle);
 }
@@ -1907,6 +1916,7 @@ const REQUIRED_BRIEF_FIELDS = [
   { key: "behavior_statement", label: "Comportamiento objetivo" },
   { key: "causa", label: "Causa B=MAP", topLevel: true },
   { key: "evidencia_primaria", label: "Evidencia primaria" },
+  { key: "intervencion", label: "Intervención" },
   { key: "hipotesis", label: "Hipótesis de intervención" },
   { key: "senal_cuantitativa", label: "Métrica de éxito" },
 ];
@@ -1994,7 +2004,8 @@ function buildBriefMarkdown() {
   const cause = b.causa?.value ?? (cycle?.causa ? `${cycle.causa} · ${causeMap[cycle.causa] ?? cycle.causa}` : "[CONFIRMAR]");
   const evidence = b.evidencia_primaria?.value ?? "[CONFIRMAR]";
   const source2 = b.segunda_fuente?.value ?? "[CONFIRMAR]";
-  const hypothesis = b.hipotesis?.value ?? b.intervencion?.value ?? "[CONFIRMAR]";
+  const intervention = b.intervencion?.value ?? "[CONFIRMAR]";
+  const hypothesis = b.hipotesis?.value ?? "[CONFIRMAR]";
   const metric = b.senal_cuantitativa?.value ?? "[CONFIRMAR]";
   const who = currentUser?.email ?? "usuario";
   const when = new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
@@ -2019,6 +2030,9 @@ function buildBriefMarkdown() {
     `- ${evidence}`,
     `- ${source2}`,
     ``,
+    `## Intervención`,
+    intervention,
+    ``,
     `## Hipótesis de intervención`,
     hypothesis,
     ``,
@@ -2038,12 +2052,21 @@ function buildBriefMarkdown() {
       lines.push(`**Tracking:** ${Array.isArray(exp.tracking_eventos) ? exp.tracking_eventos.join(", ") : exp.tracking_eventos}`);
   }
 
+  // Riesgos reales del ciclo (no un texto fijo): cada uno lleva fase, motivo,
+  // autor y fecha, tal como los deja acceptRisk() en el server.
+  const openRisks = (cycle?.risks ?? []).filter((r) => !r.resolvedAt);
+  const riskLines = openRisks.length
+    ? openRisks.map((r) => {
+        const stamp = r.acceptedAt ? new Date(r.acceptedAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : when;
+        const author = r.acceptedBy?.name || r.acceptedBy?.id || who;
+        return `- ${r.phase}: ${r.text} Riesgo aceptado por ${author} · ${stamp}.`;
+      })
+    : [`- Sin riesgos aceptados.`];
+
   lines.push(
     ``,
     `## Riesgos asumidos`,
-    isRiskAccepted()
-      ? `- F1: Diagnóstico con 1 sola fuente. Riesgo aceptado por ${who} · ${when}.`
-      : `- Sin riesgos aceptados.`,
+    ...riskLines,
     ``,
     `---`,
     `*Exportado por ${who} · ${when}*`,
@@ -2267,8 +2290,16 @@ document.querySelector("#advancePhaseBtn")?.addEventListener("click", () => {
 });
 
 // Navigate the active cycle to a phase (F0–F5). Shared by the stepper and ⌘K.
+// Back-only: avanzar SIEMPRE pasa por advancePhase() (gate + risk tag) — saltar
+// hacia adelante aquí evadiría el gate asesora-no-bloquea sin dejar rastro.
 async function goToPhase(key) {
   if (!currentCycleId) { showToast("Selecciona un ciclo primero para ir a una fase."); return; }
+  const cycle = getCurrentCycle();
+  const current = cycle?.fase_actual ?? cycle?.activePhase ?? "F0";
+  if (PHASES.indexOf(key) > PHASES.indexOf(current)) {
+    showToast('No puedes saltar fases hacia adelante así — usa "Avanzar" para pasar por el gate.', true);
+    return;
+  }
   const phases = getPhases().map((p) => ({ ...p, state: p.key === key ? "active" : p.state === "active" ? "todo" : p.state }));
   const patch = { phases, activePhase: key, fase_actual: key };
   cycles = cycles.map((c) => c.id === currentCycleId ? { ...c, ...patch } : c);
@@ -2468,9 +2499,9 @@ document.getElementById("closeCycleButton")?.addEventListener("click", closeCycl
 // F5 DecisionPicker: 3-way segmented control. Sets the (hidden) decision value,
 // derives the pattern type, and relabels the submit button per decision.
 const DECISION_META = {
-  escalado: { tipo: "patron", submit: "Escalar y crear patrón" },
-  matado: { tipo: "anti_patron", submit: "Matar y crear anti-patrón" },
-  iterando: { tipo: "patron", submit: "Iterar — volver a F1" },
+  escalar: { tipo: "patron", submit: "Escalar y crear patrón" },
+  matar: { tipo: "anti_patron", submit: "Matar y crear anti-patrón" },
+  iterar: { tipo: "patron", submit: "Iterar — volver a F1" },
 };
 document.getElementById("decisionPicker")?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-decision]");
@@ -2479,7 +2510,7 @@ document.getElementById("decisionPicker")?.addEventListener("click", (e) => {
   document.querySelectorAll("#decisionPicker .dp-btn").forEach((b) => b.classList.toggle("active", b === btn));
   const hidden = document.getElementById("closureDecision");
   if (hidden) hidden.value = decision;
-  const meta = DECISION_META[decision] ?? DECISION_META.escalado;
+  const meta = DECISION_META[decision] ?? DECISION_META.escalar;
   const patternType = document.getElementById("patternType");
   if (patternType) patternType.value = meta.tipo;
   const submitBtn = document.getElementById("closeCycleButton");
