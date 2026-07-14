@@ -5,8 +5,8 @@ import { patternDigest, cyclesIndex, decisionsDigest, assembleSystemContext } fr
 
 test("patternDigest renders one line per pattern with tipo/causa/sub-perfil/aprendizaje", () => {
   const out = patternDigest([
-    { tipo: "patron", causa: "A", sub_perfil: "rebuscador_digital", transicion: "aha_habit", nombre: "Checklist 72h", aprendizaje: "El default sube recompra", delta_metrica: "+21pp", veces_reutilizado: 4 },
-    { tipo: "anti_patron", causa: "M", sub_perfil: "empleado_aspirante", nombre: "Badge motivacional", aprendizaje: "Subir motivación no movió nada" },
+    { tipo: "patron", causa: "A", sub_perfil: "explorador", transicion: "aha_habit", nombre: "Checklist 72h", aprendizaje: "El default sube recompra", delta_metrica: "+21pp", veces_reutilizado: 4 },
+    { tipo: "anti_patron", causa: "M", sub_perfil: "master", nombre: "Badge motivacional", aprendizaje: "Subir motivación no movió nada" },
   ]);
   assert.match(out, /\[PATRÓN\]/);
   assert.match(out, /\[ANTI-PATRÓN\]/);
@@ -34,12 +34,12 @@ test("cyclesIndex lists other cycles and excludes the active one", () => {
 test("decisionsDigest renders newest-first with tipo/causa/texto", () => {
   const out = decisionsDigest([
     { fecha: "2026-07-01T00:00:00Z", tipo: "decision", causa: "A", texto: "Escalar checklist 72h" },
-    { fecha: "2026-07-05T00:00:00Z", tipo: "aprendizaje", sub_perfil: "empleado_aspirante", texto: "Necesita prueba social" },
+    { fecha: "2026-07-05T00:00:00Z", tipo: "aprendizaje", sub_perfil: "master", texto: "Necesita prueba social" },
   ]);
   // newest first
   assert.ok(out.indexOf("Necesita prueba social") < out.indexOf("Escalar checklist 72h"));
   assert.match(out, /\[decision\]/);
-  assert.match(out, /Empleado Aspirante/);
+  assert.match(out, /Master/);
 });
 
 test("decisionsDigest handles empty ledger", () => {

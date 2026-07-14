@@ -54,13 +54,35 @@ export const COGNITIVE_LABEL = {
 };
 export const TRANSITIONS = ["setup_aha", "aha_habit", "habit_engaged", "engaged_principalidad"];
 
-// --- Sub-perfiles (3 arquetipos canónicos + sin clasificar) ---
-export const SUB_PERFILES = ["rebuscador_digital", "empleado_aspirante", "joven_visionario", "sin_clasificar"];
+// --- Sub-perfiles: Niveles de dropshipper (nombres oficiales de Comercial, §3.1) ---
+// 6 niveles por volumen de órdenes mensuales (+ sin_clasificar). Reemplaza los 3
+// arquetipos psicográficos anteriores (Rebuscador Digital/Empleado Aspirante/Joven
+// Visionario) — el eje pasa de "quién es" a "en qué escalón de volumen está".
+export const SUB_PERFILES = ["bienvenido", "explorador", "master", "experto", "sabio_vip", "leyenda", "sin_clasificar"];
 export const SUB_PERFIL_LABEL = {
-  rebuscador_digital: "Rebuscador Digital",
-  empleado_aspirante: "Empleado Aspirante",
-  joven_visionario: "Joven Visionario",
+  bienvenido: "Bienvenido",
+  explorador: "Explorador",
+  master: "Master",
+  experto: "Experto",
+  sabio_vip: "Sabio VIP",
+  leyenda: "Leyenda",
   sin_clasificar: "Sin clasificar",
+};
+export const SUB_PERFIL_ORDERS = {
+  bienvenido: "0 – 100",
+  explorador: "101 – 1.000",
+  master: "1.001 – 2.500",
+  experto: "2.501 – 5.000",
+  sabio_vip: "5.001 – 20.000",
+  leyenda: "20.001+",
+};
+export const SUB_PERFIL_DESC = {
+  bienvenido: "Nuevo en la plataforma, en proceso de activación.",
+  explorador: "Primeras ventas sostenidas, aprendiendo operación.",
+  master: "Operador establecido, flujo de ventas estable.",
+  experto: "Alto volumen, empieza a optimizar procesos.",
+  sabio_vip: "Vendedor consolidado, referente del ecosistema.",
+  leyenda: "Élite del ecosistema Dropi.",
 };
 
 // --- Decisión de cierre (F5) → tipo de patrón derivado ---
@@ -72,7 +94,7 @@ export function patternTypeFromDecision(decision) {
 }
 
 // Helpers de normalización (devuelven la key canónica o null).
-// Aceptan alias: labels con espacios/tildes/mayúsculas ("Rebuscador Digital"),
+// Aceptan alias: labels con espacios/tildes/mayúsculas ("Sabio VIP"),
 // formatos viejos ("Setup_Aha", "Aha_Habito"). Un valor no mapeable → null;
 // el gate lo pedirá (asesora, no bloquea) — nunca un 400 duro.
 const slug = (v) => String(v ?? "")

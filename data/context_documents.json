@@ -151,13 +151,13 @@
     },
     {
       "id": "perfiles",
-      "title": "6.7 Sub-perfiles de seller (doctrina)",
-      "content": "Sub-perfiles canónicos (doctrina §3 — enum cerrado; el diagnóstico siempre nombra uno):\n\n- **Rebuscador Digital** (26–38): busca un ingreso extra inmediato, ya digital. Recurso más escaso: **tiempo**. Barrera Setup→Aha: \"¿Cuánto tarda en llegarme el dinero?\"\n- **Empleado Aspirante** (40–55): quiere independencia económica; viene con mentalidad de empleado. Recurso más escaso: **confianza**. Barrera Setup→Aha: \"¿Esto es legítimo? ¿Me van a estafar?\"\n- **Joven Visionario** (22–26): quiere construir algo propio desde cero. Recurso más escaso: **capital**. Barrera Setup→Aha: \"¿Puedo empezar sin plata?\"\n\nRegla: todo ciclo debe nombrar el sub-perfil objetivo; si no está claro, es un gate de F0. `sin_clasificar` existe solo como faceta visible de deuda, no como destino.",
+      "title": "6.7 Niveles de dropshipper (sub-perfil, doctrina §3.1)",
+      "content": "Niveles de dropshipper — nombres oficiales entregados por Comercial (doctrina §3.1 — enum cerrado; el diagnóstico siempre nombra uno). Eje de volumen de órdenes mensuales, no psicográfico:\n\n- **Bienvenido** (0–100 órdenes/mes): nuevo en la plataforma, en proceso de activación.\n- **Explorador** (101–1.000): primeras ventas sostenidas, aprendiendo operación.\n- **Master** (1.001–2.500): operador establecido, flujo de ventas estable.\n- **Experto** (2.501–5.000): alto volumen, empieza a optimizar procesos.\n- **Sabio VIP** (5.001–20.000): vendedor consolidado, referente del ecosistema.\n- **Leyenda** (20.001+): élite del ecosistema Dropi.\n\nRegla: todo ciclo debe nombrar el nivel objetivo; si no está claro, es un gate de F0. `sin_clasificar` existe solo como faceta visible de deuda, no como destino.",
       "sortOrder": 8,
       "pendingCount": 0,
-      "updatedAt": "2026-07-06T19:18:15.000Z",
+      "updatedAt": "2026-07-14T00:00:00.000Z",
       "updatedBy": "doctrina-v3",
-      "version": 2,
+      "version": 3,
       "versions": [
         {
           "version": 2,
@@ -167,6 +167,15 @@
           "updatedAt": "2026-07-06T19:18:15.000Z",
           "updatedBy": "doctrina-v3",
           "reason": "Reseed Ola 2: alineado a la doctrina canónica (Biblia v3)."
+        },
+        {
+          "version": 3,
+          "title": "6.7 Niveles de dropshipper (sub-perfil, doctrina §3.1)",
+          "content": "Niveles de dropshipper — nombres oficiales entregados por Comercial (doctrina §3.1 — enum cerrado; el diagnóstico siempre nombra uno). Eje de volumen de órdenes mensuales, no psicográfico:\n\n- **Bienvenido** (0–100 órdenes/mes): nuevo en la plataforma, en proceso de activación.\n- **Explorador** (101–1.000): primeras ventas sostenidas, aprendiendo operación.\n- **Master** (1.001–2.500): operador establecido, flujo de ventas estable.\n- **Experto** (2.501–5.000): alto volumen, empieza a optimizar procesos.\n- **Sabio VIP** (5.001–20.000): vendedor consolidado, referente del ecosistema.\n- **Leyenda** (20.001+): élite del ecosistema Dropi.\n\nRegla: todo ciclo debe nombrar el nivel objetivo; si no está claro, es un gate de F0. `sin_clasificar` existe solo como faceta visible de deuda, no como destino.",
+          "pendingCount": 0,
+          "updatedAt": "2026-07-14T00:00:00.000Z",
+          "updatedBy": "doctrina-v3",
+          "reason": "Nombres oficiales de Comercial — Niveles de dropshipper (6, por volumen de órdenes mensuales) reemplaza los 3 arquetipos psicográficos."
         }
       ]
     },

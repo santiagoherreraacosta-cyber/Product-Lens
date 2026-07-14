@@ -270,30 +270,17 @@ function openModal(id, innerHtml) {
   return overlay;
 }
 
-// Auto-suggest a sub-perfil from keywords in the typed behavior (doctrine
-// heuristic). A manual pick always wins once the PM touches the <select>.
-const SUBPERFIL_KEYWORDS = [
-  { sub: "empleado_aspirante", re: /\b(confia|confía|confianza|estafa|legit|legítim|legitim|desconfia)/i },
-  { sub: "rebuscador_digital", re: /\b(tiempo|rápid|rapid|72\s?h|día|dia|hoy|urg|inmediat)/i },
-  { sub: "joven_visionario", re: /\b(capital|plata|dinero|invert|invers|escala|emprend)/i },
-];
-function suggestSubPerfil(text) {
-  for (const { sub, re } of SUBPERFIL_KEYWORDS) if (re.test(text)) return sub;
-  return null;
-}
-
 function openNewCycleModal() {
   const overlay = openModal("newCycleModal", `
     <div class="export-modal-card newcycle-card">
       <p class="eyebrow">Nuevo ciclo · F0 ${FASE_LABEL.F0}</p>
       <h2 class="pd-title">Empieza por un comportamiento, no por una feature.</h2>
       <label class="nc-label" for="ncBehavior">¿Qué seller, haciendo qué, no está haciendo qué?</label>
-      <textarea id="ncBehavior" class="nc-textarea" rows="3" placeholder="El Rebuscador Digital no configura su 2º envío dentro de las 72h tras el primer pedido…"></textarea>
+      <textarea id="ncBehavior" class="nc-textarea" rows="3" placeholder="El seller Explorador no configura su 2º envío dentro de las 72h tras el primer pedido…"></textarea>
       <div class="nc-grid">
         <div>
           <label class="nc-label" for="ncSub">Sub-perfil (opcional)</label>
           <select id="ncSub" class="nc-input">${subPerfilOptions()}</select>
-          <p id="ncSubHint" class="nc-hint" hidden></p>
         </div>
         <div><label class="nc-label" for="ncTrans">Transición (opcional)</label><select id="ncTrans" class="nc-input">${transitionOptions()}</select></div>
       </div>
@@ -311,19 +298,6 @@ function openNewCycleModal() {
     </div>`);
   const q = (sel) => overlay.querySelector(sel);
   q('[data-nc="cancel"]')?.addEventListener("click", overlay.close);
-
-  // Sub-perfil suggestion: run on input until the PM touches the <select>.
-  let subTouched = false;
-  const subSel = q("#ncSub"), subHint = q("#ncSubHint");
-  subSel?.addEventListener("change", () => { subTouched = true; if (subHint) subHint.hidden = true; });
-  q("#ncBehavior")?.addEventListener("input", (e) => {
-    if (subTouched) return;
-    const sug = suggestSubPerfil(e.target.value ?? "");
-    if (sug && subSel) {
-      subSel.value = sug;
-      if (subHint) { subHint.textContent = `Sugerido por el texto: ${subPerfilLabel(sug)}`; subHint.hidden = false; }
-    } else if (subHint) { subHint.hidden = true; if (subSel) subSel.value = ""; }
-  });
 
   // CognitiveTransition mini-preview once a transition is chosen.
   const preview = q("#ncTransPreview");
