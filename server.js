@@ -9,7 +9,7 @@ import { assembleSystemContext } from "./src/memory.js";
 import { initStore, load as storeLoad, save as storeSave } from "./src/persistence.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
-import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, SUB_PERFILES, TRANSITIONS, SUB_CAUSA } from "./src/doctrina.js";
+import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, TRANSITIONS, SUB_CAUSA } from "./src/doctrina.js";
 
 // Default phase seed (stepper UI) with canonical Spanish labels from the doctrine.
 const defaultPhases = () => DOCTRINE_PHASES.map((key, i) => ({ key, label: FASE_LABEL[key], state: i === 0 ? "active" : "todo" }));
@@ -159,13 +159,16 @@ const BRIEF_EXTRACTION_TOOL = {
     type: "object",
     properties: {
       behavior_statement: { type: "string", description: "Comportamiento objetivo: quién hace qué, cuándo, y no hace qué hoy." },
-      sub_perfil: { type: "string", enum: SUB_PERFILES, description: "Sub-perfil del usuario (arquetipo canónico de la doctrina)." },
+      // sub_perfil NO es un campo extraíble: doctrina §3 prohíbe la auto-sugerencia
+      // por texto (el eje es volumen de órdenes/mes, no algo que se infiera de la
+      // conversación) — el PM lo elige a mano en el <select> del Brief.
       transicion: { type: "string", enum: TRANSITIONS, description: "Transición cognitiva objetivo (par adyacente de la escala de 5 niveles)." },
       segmento_objetivo: { type: "string", description: "Segmento: cohorte conductual concreta (ej. 'sellers inactivos 30d', 'registrados sin 1ª orden en 7d'). NO es el arquetipo." },
       causa: { type: "string", enum: ["M", "A", "P"], description: "Causa B=MAP: M=Motivación, A=Ability, P=Prompt." },
       sub_causa: { type: "string", enum: [...SUB_CAUSA.M, ...SUB_CAUSA.A, ...SUB_CAUSA.P], description: "Sub-causa opcional que refina la causa (debe pertenecer al bucket de la causa): M=motivacion/confianza/incentivo · A=claridad/capacidad/friccion · P=timing/visibilidad/ausencia." },
       evidencia_primaria: { type: "string", description: "Evidencia cuantitativa primaria del comportamiento." },
       segunda_fuente: { type: "string", description: "Segunda fuente de evidencia (triangulación)." },
+      intervencion: { type: "string", description: "La intervención: el cambio mínimo diseñado para atacar la causa confirmada (F2)." },
       hipotesis: { type: "string", description: "Hipótesis de intervención falsable." },
       senal_cuantitativa: { type: "string", description: "Métrica de éxito / señal cuantitativa objetivo." },
     },
@@ -653,10 +656,10 @@ async function handle(req, res) {
       let cycle = cycles.get(cycleId);
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
-      // Iteration loop (Fase 2): closing with "iterando" does NOT close the
+      // Iteration loop (Fase 2): closing with "iterar" does NOT close the
       // cycle — it loops back to F1 (Diagnóstico) to re-diagnose, keeping history.
       const resultado = body.resultado_cierre ?? body.decision;
-      if (resultado === "iterando") {
+      if (resultado === "iterar") {
         const now = new Date().toISOString();
         const phases = (cycle.phases ?? []).map((p) =>
           p.key === "F1" ? { ...p, state: "active", note: "iteración" } : { ...p, state: p.key === "F0" ? "done" : "todo" });
@@ -772,6 +775,17 @@ async function handle(req, res) {
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
       const now = new Date().toISOString();
+      // Un PATCH plano solo puede mover fase_actual hacia atrás (o dejarla igual).
+      // Avanzar SIEMPRE pasa por POST .../advance, que aplica el gate y deja el
+      // tag de riesgo si se salta — si no, el gate asesora-no-bloquea es evadible.
+      if ("fase_actual" in body || "activePhase" in body) {
+        const requested = body.fase_actual ?? body.activePhase;
+        const currentIdx = PHASES.indexOf(cycle.fase_actual ?? cycle.activePhase ?? "F0");
+        const requestedIdx = PHASES.indexOf(requested);
+        if (requestedIdx > currentIdx) {
+          return json(res, { error: "No se puede avanzar de fase por PATCH directo — usa POST /api/cycles/:id/advance (aplica el gate)." }, 422);
+        }
+      }
       // Enums de doctrina: normaliza alias a keys canónicas; valor no mapeable
       // → null (el gate lo pedirá — asesora, no bloquea).
       if ("sub_perfil" in body) body.sub_perfil = normalizeSubPerfil(body.sub_perfil);
