@@ -46,17 +46,29 @@ El seller no pasa por un funnel: sube de nivel. Enum: `setup | aha | habit | eng
 
 ---
 
-## 3. Sub-perfiles — 3 arquetipos
+## 3. Sub-perfiles — Niveles de dropshipper (6, nombres oficiales de Comercial)
 
-Enum: `rebuscador_digital | empleado_aspirante | joven_visionario` (+ `sin_clasificar`).
+Enum: `bienvenido | explorador | master | experto | sabio_vip | leyenda` (+ `sin_clasificar`).
 
-| Sub-perfil | Quién es (una línea) | Recurso más escaso | Barrera Setup→Aha |
-|-----------|----------------------|--------------------|-------------------|
-| **Rebuscador Digital** | 26–38. Busca un ingreso extra inmediato, ya digital. | Tiempo | "¿Cuánto tarda en llegarme el dinero?" |
-| **Empleado Aspirante** | 40–55. Quiere independencia económica; viene con mentalidad de empleado. | Confianza | "¿Esto es legítimo? ¿Me van a estafar?" |
-| **Joven Visionario** | 22–26. Quiere construir algo propio desde cero. | Capital | "¿Puedo empezar sin plata?" |
+El eje **no es psicográfico** (no describe quién es el seller) sino de **volumen de
+operación**: en qué escalón de órdenes mensuales está. Reemplaza el enum anterior de
+3 arquetipos por edad (Rebuscador Digital/Empleado Aspirante/Joven Visionario).
 
-> ⚠️ El repo tenía "Seller Explorador / Operador en Escala" (del seed de B1). No existen en la doctrina. Reemplazados por estos 3. Solo "Rebuscador Digital" se conserva.
+| Nivel | Órdenes mensuales | Perfil |
+|-------|--------------------|--------|
+| 1. **Bienvenido** | 0 – 100 | Nuevo en la plataforma, en proceso de activación. |
+| 2. **Explorador** | 101 – 1.000 | Primeras ventas sostenidas, aprendiendo operación. |
+| 3. **Master** | 1.001 – 2.500 | Operador establecido, flujo de ventas estable. |
+| 4. **Experto** | 2.501 – 5.000 | Alto volumen, empieza a optimizar procesos. |
+| 5. **Sabio VIP** | 5.001 – 20.000 | Vendedor consolidado, referente del ecosistema. |
+| 6. **Leyenda** | 20.001+ | Élite del ecosistema Dropi. |
+
+> ⚠️ §3.1 "Niveles de dropshipper" (nombres oficiales de Comercial) **reemplaza** el
+> enum psicográfico anterior de 3 arquetipos (Rebuscador Digital/Empleado Aspirante/
+> Joven Visionario, que a su vez había reemplazado "Seller Explorador/Operador en
+> Escala" del seed de B1). Como el eje cambió de "quién es" a "en qué nivel de
+> volumen está", **no hay auto-sugerencia por texto** del comportamiento — el PM
+> lo elige a mano según el dato real de órdenes/mes del seller.
 
 ---
 
@@ -95,7 +107,7 @@ type SubCausa =
 type CognitiveLevel = "setup" | "aha" | "habit" | "engaged" | "principalidad";
 type Transition = "setup_aha" | "aha_habit" | "habit_engaged" | "engaged_principalidad";
 
-type SubPerfil = "rebuscador_digital" | "empleado_aspirante" | "joven_visionario" | "sin_clasificar";
+type SubPerfil = "bienvenido" | "explorador" | "master" | "experto" | "sabio_vip" | "leyenda" | "sin_clasificar";
 
 type Fase = "F0" | "F1" | "F2" | "F3" | "F4" | "F5";
 type Decision = "escalar" | "matar" | "iterar";
