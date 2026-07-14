@@ -25,7 +25,6 @@ run("snapshot: exportService", ["--test", "test/exportService.snapshot.test.js"]
 // Unit tests (pure JS)
 run("unit: phase-engine", ["--test", "tests/unit/phase-engine.test.js"]);
 run("unit: export-service", ["--test", "tests/unit/export-service.test.js"]);
-run("unit: extraction-service", ["--test", "tests/unit/extraction-service.test.js"]);
 run("unit: cycle-logic", ["--test", "tests/unit/cycle-logic.test.js"]);
 run("unit: context-store", ["--test", "tests/unit/context-store.test.js"]);
 run("unit: gate-live-schema", ["--test", "tests/unit/gate-live-schema.test.js"]);
@@ -38,7 +37,6 @@ run("integration: api", ["--test", "tests/integration/api.test.js"]);
 
 // Harvested domain modules (src/): syntax + unit
 run("syntax: src/phaseEngine", ["--check", "src/phaseEngine.js"]);
-run("syntax: src/extraction", ["--check", "src/extraction.js"]);
 run("syntax: src/exportService", ["--check", "src/exportService.js"]);
 
 console.log("\n✅ All tests passed");

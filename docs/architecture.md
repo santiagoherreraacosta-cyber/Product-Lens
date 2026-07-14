@@ -24,7 +24,7 @@ Dropi Product Back-Office is a vanilla JS web application backed by a Node.js HT
 ├── app.js               # Frontend application logic
 ├── index.html           # Frontend HTML
 ├── styles.css           # Frontend styles
-├── src/                 # Frontend source modules (contextStore, contextRetriever)
+├── src/                 # Frontend source modules (contextStore, phaseEngine, cycleLogic, doctrina)
 ├── data/                # Persisted JSON stores (patterns, audit events)
 ├── server/
 │   ├── src/
