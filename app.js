@@ -1,6 +1,6 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
 import { markdownToPdfHtml } from "./src/exportService.js";
-import { FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL } from "./src/doctrina.js";
+import { PHASES, FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL } from "./src/doctrina.js";
 
 // <option> lists derived from the doctrine enums (2B).
 const subPerfilOptions = (cur = "") =>
@@ -1809,8 +1809,8 @@ function loadBriefFromCycle(cycle) {
   const briefEvidence = document.querySelector("#briefEvidence");
 
   setField(briefBehavior, b.behavior_statement?.value ?? null);
-  setField(briefSubProfile, cycle?.sub_perfil ? subPerfilLabel(cycle.sub_perfil) : null);
-  setField(briefCogLevel, b.nivel_cognitivo?.value ?? (cycle?.transicion ? transitionLabel(cycle.transicion) : null));
+  if (briefSubProfile) briefSubProfile.innerHTML = subPerfilOptions(cycle?.sub_perfil ?? "");
+  if (briefCogLevel) briefCogLevel.innerHTML = transitionOptions(cycle?.transicion ?? "");
   const briefSegment = document.querySelector("#briefSegment");
   setField(briefSegment, cycle?.segmento_objetivo ?? null);
   setField(briefEvidence, b.evidencia_primaria?.value ?? null);
@@ -1850,11 +1850,9 @@ function loadBriefFromCycle(cycle) {
   const mWarn = document.getElementById("metricTypeWarn");
   if (mWarn) mWarn.hidden = mType !== "actividad";
 
-  // Make brief fields inline-editable
+  // Make brief fields inline-editable (sub_perfil/nivel cognitivo son <select>, no free-text)
   makeFieldEditable(briefBehavior, "brief.behavior_statement");
-  makeFieldEditable(briefSubProfile, "sub_perfil");
   makeFieldEditable(briefSegment, "segmento_objetivo");
-  makeFieldEditable(briefCogLevel, "brief.nivel_cognitivo");
   makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
   makeFieldEditable(secondSource, "brief.segunda_fuente");
   makeFieldEditable(hypothesisField, "brief.hipotesis");
@@ -1879,6 +1877,28 @@ function loadBriefFromCycle(cycle) {
   if (cycle?.transicion) cnt++;
   if (cycle?.causa) cnt++;
   setBriefProgress(Math.min(cnt, 11));
+
+  applyPhaseGating(cycle);
+}
+
+// Hilo conductor: los campos de fases futuras quedan visibles pero bloqueados
+// (atenuados + candado) hasta que el ciclo alcance esa fase — igual que el
+// checklist del gate. El switch a Experiment Card se bloquea hasta F3.
+function applyPhaseGating(cycle) {
+  const active = cycle?.fase_actual ?? cycle?.activePhase ?? "F0";
+  const activeIdx = Math.max(PHASES.indexOf(active), 0);
+  document.querySelectorAll(".phase-gated").forEach((block) => {
+    const unlockIdx = PHASES.indexOf(block.dataset.unlockPhase);
+    const locked = unlockIdx > activeIdx;
+    block.classList.toggle("is-locked", locked);
+    block.querySelectorAll("input, select, button, [contenteditable]").forEach((el) => { el.disabled = locked; });
+  });
+  const expLocked = activeIdx < PHASES.indexOf("F3");
+  if (experimentSwitch) {
+    experimentSwitch.disabled = expLocked;
+    experimentSwitch.title = expLocked ? "Se habilita en F3 · Experimento" : "";
+    experimentSwitch.classList.toggle("is-locked", expLocked);
+  }
 }
 
 // Fields required for a complete Intervention Brief; those without a value are
@@ -2192,6 +2212,22 @@ document.querySelector("#briefSubCausa")?.addEventListener("change", async (e) =
   const patch = { sub_causa: e.target.value || null };
   cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
   await updateCycle(patch);
+});
+
+document.querySelector("#briefSubProfile")?.addEventListener("change", async (e) => {
+  if (!currentCycleId) return;
+  const patch = { sub_perfil: e.target.value || null };
+  cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+  await updateCycle(patch);
+  if (e.target.value) showToast("Sub-perfil guardado ✓");
+});
+
+document.querySelector("#briefCogLevel")?.addEventListener("change", async (e) => {
+  if (!currentCycleId) return;
+  const patch = { transicion: e.target.value || null };
+  cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+  await updateCycle(patch);
+  if (e.target.value) showToast("Nivel cognitivo guardado ✓");
 });
 
 // B=MAP cause selector
