@@ -949,17 +949,138 @@ async function loadAnalytics() {
 }
 
 function renderAnalytics(a) {
-  const tile = (label, value, hint) =>
-    `<div class="stat-tile"><span class="stat-value">${escapeHtml(String(value))}</span><span class="stat-label">${escapeHtml(label)}</span>${hint ? `<span class="stat-hint">${escapeHtml(hint)}</span>` : ""}</div>`;
-  analyticsGrid.innerHTML = [
-    tile("Ciclos totales", a.cycles?.total ?? 0, `${a.cycles?.active ?? 0} en curso · ${a.cycles?.closed ?? 0} cerrados`),
-    tile("Rigor de gates", a.gates?.rigor != null ? `${a.gates.rigor}%` : "—", `${a.gates?.passed ?? 0} limpios · ${a.gates?.skippedWithRisk ?? 0} con riesgo`),
-    tile("Iteraciones", a.iterations ?? 0, "ciclos que re-diagnosticaron"),
-    tile("Patrones", a.patterns?.total ?? 0, `${a.patterns?.reused ?? 0} reutilizados`),
-    tile("Rechazos F0", a.behavior?.rejected ?? 0, "arranques por feature evitados"),
-    tile("Mensajes de chat", a.chat?.messages ?? 0, `${a.chat?.briefExtractions ?? 0} extracciones de brief`),
-    tile("Exports", a.exports?.attempted ?? 0, `${a.exports?.withAssumptions ?? 0} con supuestos`),
-  ].join("");
+  // DOM APIs (sin innerHTML) para no disparar el sink de "código arbitrario".
+  const span = (cls, text) => { const s = document.createElement("span"); s.className = cls; s.textContent = String(text); return s; };
+  const tile = (drill, label, value, hint) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "stat-tile";
+    btn.dataset.drill = drill;
+    btn.setAttribute("aria-expanded", "false");
+    btn.append(span("stat-value", value), span("stat-label", label));
+    if (hint) btn.append(span("stat-hint", hint));
+    btn.append(span("stat-drill-hint", "Ver detalle"));
+    btn.addEventListener("click", () => openDrill(drill, btn));
+    return btn;
+  };
+  analyticsGrid.replaceChildren(
+    tile("ciclos_totales", "Ciclos totales", a.cycles?.total ?? 0, `${a.cycles?.active ?? 0} en curso · ${a.cycles?.closed ?? 0} cerrados`),
+    tile("rigor_gates", "Rigor de gates", a.gates?.rigor != null ? `${a.gates.rigor}%` : "—", `${a.gates?.passed ?? 0} limpios · ${a.gates?.skippedWithRisk ?? 0} con riesgo`),
+    tile("iteraciones", "Iteraciones", a.iterations ?? 0, "ciclos que re-diagnosticaron"),
+    tile("patrones", "Patrones", a.patterns?.total ?? 0, `${a.patterns?.reused ?? 0} reutilizados`),
+    tile("rechazos_f0", "Rechazos F0", a.behavior?.rejected ?? 0, "arranques por feature evitados"),
+    tile("mensajes_chat", "Mensajes de chat", a.chat?.messages ?? 0, `${a.chat?.briefExtractions ?? 0} extracciones de brief`),
+    tile("exports", "Exports", a.exports?.attempted ?? 0, `${a.exports?.withAssumptions ?? 0} con supuestos`),
+  );
+  const panel = document.createElement("div");
+  panel.id = "drillPanel";
+  panel.className = "drill-panel";
+  panel.hidden = true;
+  analyticsGrid.append(panel);
+}
+
+let drillActiveKey = null;
+async function openDrill(key, tile) {
+  const panel = document.getElementById("drillPanel");
+  if (!panel) return;
+  const tiles = analyticsGrid.querySelectorAll("[data-drill]");
+  // Toggle: segundo click en el mismo tile cierra.
+  if (drillActiveKey === key) {
+    drillActiveKey = null;
+    panel.hidden = true;
+    panel.replaceChildren();
+    tiles.forEach((t) => { t.classList.remove("is-active"); t.setAttribute("aria-expanded", "false"); });
+    return;
+  }
+  drillActiveKey = key;
+  tiles.forEach((t) => {
+    const on = t.dataset.drill === key;
+    t.classList.toggle("is-active", on);
+    t.setAttribute("aria-expanded", String(on));
+  });
+  // Mueve el panel justo debajo del tile clicado (misma fila visual).
+  tile.after(panel);
+  panel.hidden = false;
+  panel.replaceChildren(buildDrillNode({ loading: true }));
+  try {
+    const res = await apiFetch(`/api/analytics/drill?metric=${encodeURIComponent(key)}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const data = await res.json();
+    if (drillActiveKey !== key) return; // el usuario cambió de tile mientras cargaba
+    panel.replaceChildren(buildDrillNode(data));
+  } catch {
+    panel.replaceChildren(buildDrillNode({ error: true }));
+  }
+}
+
+// Construye el panel de drill con DOM APIs (sin innerHTML de datos dinámicos).
+function buildDrillNode(data) {
+  const wrap = document.createElement("div");
+  wrap.className = "drill-inner";
+  if (data.loading) {
+    const p = document.createElement("p");
+    p.className = "loading-state";
+    p.textContent = "Cargando…";
+    wrap.appendChild(p);
+    return wrap;
+  }
+  if (data.error) {
+    const p = document.createElement("p");
+    p.className = "error-state";
+    p.textContent = "No se pudo cargar el detalle.";
+    wrap.appendChild(p);
+    return wrap;
+  }
+  const head = document.createElement("p");
+  head.className = "drill-title";
+  head.textContent = data.label ?? "Detalle";
+  wrap.appendChild(head);
+  if (!data.items?.length) {
+    const empty = document.createElement("p");
+    empty.className = "drill-empty";
+    empty.textContent = "Ningún ciclo compone este número todavía.";
+    wrap.appendChild(empty);
+    return wrap;
+  }
+  const list = document.createElement("ul");
+  list.className = "drill-list";
+  data.items.forEach((item) => {
+    const li = document.createElement("li");
+    const isClickable = item.type === "cycle" || item.type === "pattern";
+    const row = document.createElement(isClickable ? "button" : "div");
+    row.className = `drill-item drill-item--${item.type}`;
+    if (isClickable) {
+      row.type = "button";
+      row.addEventListener("click", () => openDrillTarget(item));
+    }
+    const title = document.createElement("span");
+    title.className = "drill-item-title";
+    title.textContent = item.title ?? "";
+    row.appendChild(title);
+    if (item.subtitle) {
+      const sub = document.createElement("span");
+      sub.className = "drill-item-sub";
+      sub.textContent = item.subtitle;
+      row.appendChild(sub);
+    }
+    li.appendChild(row);
+    list.appendChild(li);
+  });
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function openDrillTarget(item) {
+  if (item.type === "cycle") {
+    const c = cycles.find((x) => x.id === item.id);
+    if (!c) { showToast("Ese ciclo ya no está disponible."); return; }
+    currentCycleId = c.id;
+    renderActiveCycle(); renderStepper(); loadMessages(c.id); setView("workspace");
+  } else if (item.type === "pattern") {
+    const p = patterns.find((x) => x.id === item.id);
+    if (p) openPatternDetail(p.id);
+    else { setView("library"); showToast("Abre el patrón desde la Biblioteca."); }
+  }
 }
 
 // --- Context ---
@@ -2011,12 +2132,33 @@ function openExportPreview(markdown, title) {
 }
 
 // --- Toast ---
+// PR-6 · toasts apilables: un solo contenedor fijo, cada toast con botón de cierre.
+function toastStack() {
+  let stack = document.querySelector(".toast-stack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.className = "toast-stack";
+    document.body.appendChild(stack);
+  }
+  return stack;
+}
+
 function showToast(message, isError = false, duration = isError ? 5000 : 2800) {
   const el = document.createElement("div");
   el.className = `toast${isError ? " is-error" : ""}`;
-  el.textContent = message;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), duration);
+  const text = document.createElement("span");
+  text.className = "toast-text";
+  text.textContent = message;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "Cerrar");
+  close.textContent = "×";
+  const dismiss = () => el.remove();
+  close.addEventListener("click", dismiss);
+  el.append(text, close);
+  toastStack().appendChild(el);
+  setTimeout(dismiss, duration);
 }
 
 // --- Placeholder rotation ---
@@ -2162,11 +2304,19 @@ document.querySelectorAll("[data-command]").forEach((button) => {
   });
 });
 
-commandButton?.addEventListener("click", () => { commandPalette.hidden = false; });
+commandButton?.addEventListener("click", () => openPalette());
 
-commandPalette?.addEventListener("click", (event) => {
-  if (event.target === commandPalette) commandPalette.hidden = true;
-  const command = event.target.dataset?.paletteCommand;
+function openPalette() {
+  commandPalette.hidden = false;
+  setTimeout(() => { paletteSearch?.focus(); setPaletteActiveIndex(0); }, 0);
+}
+
+function closePalette() {
+  commandPalette.hidden = true;
+  setPaletteActiveIndex(-1);
+}
+
+function runPaletteCommand(command) {
   if (!command) return;
   if (["home", "workspace", "library", "context"].includes(command)) setView(command);
   if (command === "theme") themeToggle.click();
@@ -2185,15 +2335,51 @@ commandPalette?.addEventListener("click", (event) => {
     if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para ir a una fase."); }
     else { setView("workspace"); goToPhase(command); }
   }
-  commandPalette.hidden = true;
+  closePalette();
+}
+
+commandPalette?.addEventListener("click", (event) => {
+  if (event.target === commandPalette) { closePalette(); return; }
+  const command = event.target.closest?.("[data-palette-command]")?.dataset?.paletteCommand;
+  runPaletteCommand(command);
 });
+
+// PR-6 · navegación por teclado del ⌘K: ↑/↓ mueve el resaltado, Enter ejecuta.
+let paletteActiveIndex = -1;
+function visiblePaletteButtons() {
+  return Array.from(commandPalette.querySelectorAll("[data-palette-command]")).filter((b) => !b.classList.contains("is-hidden"));
+}
+function setPaletteActiveIndex(index) {
+  const buttons = visiblePaletteButtons();
+  buttons.forEach((b) => b.classList.remove("is-active"));
+  if (index < 0 || index >= buttons.length) { paletteActiveIndex = -1; return; }
+  paletteActiveIndex = index;
+  const active = buttons[index];
+  active.classList.add("is-active");
+  active.scrollIntoView({ block: "nearest" });
+}
+function movePaletteActive(delta) {
+  const buttons = visiblePaletteButtons();
+  if (!buttons.length) return;
+  const next = paletteActiveIndex < 0 ? (delta > 0 ? 0 : buttons.length - 1) : (paletteActiveIndex + delta + buttons.length) % buttons.length;
+  setPaletteActiveIndex(next);
+}
 
 document.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    commandPalette.hidden = !commandPalette.hidden;
+    if (commandPalette.hidden) openPalette(); else closePalette();
+    return;
   }
-  if (event.key === "Escape") commandPalette.hidden = true;
+  if (commandPalette.hidden) return;
+  if (event.key === "Escape") { closePalette(); return; }
+  if (event.key === "ArrowDown") { event.preventDefault(); movePaletteActive(1); return; }
+  if (event.key === "ArrowUp") { event.preventDefault(); movePaletteActive(-1); return; }
+  if (event.key === "Enter") {
+    const buttons = visiblePaletteButtons();
+    const target = paletteActiveIndex >= 0 ? buttons[paletteActiveIndex] : buttons[0];
+    if (target) { event.preventDefault(); runPaletteCommand(target.dataset.paletteCommand); }
+  }
 });
 
 exportBrief?.addEventListener("click", () => exportBriefFlow());
@@ -2319,6 +2505,7 @@ paletteSearch?.addEventListener("input", () => {
   } else if (emptyEl) {
     emptyEl.remove();
   }
+  setPaletteActiveIndex(visible > 0 ? 0 : -1);
 });
 
 // --- Start ---
