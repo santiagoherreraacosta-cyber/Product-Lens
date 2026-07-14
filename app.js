@@ -2132,12 +2132,33 @@ function openExportPreview(markdown, title) {
 }
 
 // --- Toast ---
+// PR-6 · toasts apilables: un solo contenedor fijo, cada toast con botón de cierre.
+function toastStack() {
+  let stack = document.querySelector(".toast-stack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.className = "toast-stack";
+    document.body.appendChild(stack);
+  }
+  return stack;
+}
+
 function showToast(message, isError = false, duration = isError ? 5000 : 2800) {
   const el = document.createElement("div");
   el.className = `toast${isError ? " is-error" : ""}`;
-  el.textContent = message;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), duration);
+  const text = document.createElement("span");
+  text.className = "toast-text";
+  text.textContent = message;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "Cerrar");
+  close.textContent = "×";
+  const dismiss = () => el.remove();
+  close.addEventListener("click", dismiss);
+  el.append(text, close);
+  toastStack().appendChild(el);
+  setTimeout(dismiss, duration);
 }
 
 // --- Placeholder rotation ---
@@ -2283,11 +2304,19 @@ document.querySelectorAll("[data-command]").forEach((button) => {
   });
 });
 
-commandButton?.addEventListener("click", () => { commandPalette.hidden = false; });
+commandButton?.addEventListener("click", () => openPalette());
 
-commandPalette?.addEventListener("click", (event) => {
-  if (event.target === commandPalette) commandPalette.hidden = true;
-  const command = event.target.dataset?.paletteCommand;
+function openPalette() {
+  commandPalette.hidden = false;
+  setTimeout(() => { paletteSearch?.focus(); setPaletteActiveIndex(0); }, 0);
+}
+
+function closePalette() {
+  commandPalette.hidden = true;
+  setPaletteActiveIndex(-1);
+}
+
+function runPaletteCommand(command) {
   if (!command) return;
   if (["home", "workspace", "library", "context"].includes(command)) setView(command);
   if (command === "theme") themeToggle.click();
@@ -2306,15 +2335,51 @@ commandPalette?.addEventListener("click", (event) => {
     if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para ir a una fase."); }
     else { setView("workspace"); goToPhase(command); }
   }
-  commandPalette.hidden = true;
+  closePalette();
+}
+
+commandPalette?.addEventListener("click", (event) => {
+  if (event.target === commandPalette) { closePalette(); return; }
+  const command = event.target.closest?.("[data-palette-command]")?.dataset?.paletteCommand;
+  runPaletteCommand(command);
 });
+
+// PR-6 · navegación por teclado del ⌘K: ↑/↓ mueve el resaltado, Enter ejecuta.
+let paletteActiveIndex = -1;
+function visiblePaletteButtons() {
+  return Array.from(commandPalette.querySelectorAll("[data-palette-command]")).filter((b) => !b.classList.contains("is-hidden"));
+}
+function setPaletteActiveIndex(index) {
+  const buttons = visiblePaletteButtons();
+  buttons.forEach((b) => b.classList.remove("is-active"));
+  if (index < 0 || index >= buttons.length) { paletteActiveIndex = -1; return; }
+  paletteActiveIndex = index;
+  const active = buttons[index];
+  active.classList.add("is-active");
+  active.scrollIntoView({ block: "nearest" });
+}
+function movePaletteActive(delta) {
+  const buttons = visiblePaletteButtons();
+  if (!buttons.length) return;
+  const next = paletteActiveIndex < 0 ? (delta > 0 ? 0 : buttons.length - 1) : (paletteActiveIndex + delta + buttons.length) % buttons.length;
+  setPaletteActiveIndex(next);
+}
 
 document.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    commandPalette.hidden = !commandPalette.hidden;
+    if (commandPalette.hidden) openPalette(); else closePalette();
+    return;
   }
-  if (event.key === "Escape") commandPalette.hidden = true;
+  if (commandPalette.hidden) return;
+  if (event.key === "Escape") { closePalette(); return; }
+  if (event.key === "ArrowDown") { event.preventDefault(); movePaletteActive(1); return; }
+  if (event.key === "ArrowUp") { event.preventDefault(); movePaletteActive(-1); return; }
+  if (event.key === "Enter") {
+    const buttons = visiblePaletteButtons();
+    const target = paletteActiveIndex >= 0 ? buttons[paletteActiveIndex] : buttons[0];
+    if (target) { event.preventDefault(); runPaletteCommand(target.dataset.paletteCommand); }
+  }
 });
 
 exportBrief?.addEventListener("click", () => exportBriefFlow());
@@ -2440,6 +2505,7 @@ paletteSearch?.addEventListener("input", () => {
   } else if (emptyEl) {
     emptyEl.remove();
   }
+  setPaletteActiveIndex(visible > 0 ? 0 : -1);
 });
 
 // --- Start ---
