@@ -272,7 +272,7 @@
         </header>
 
         <section id="briefBody" class="brief-body">
-          <p class="brief-help">Este entregable se arma <strong>solo</strong> mientras conversas con el asistente. ¿Falta algo o quieres corregirlo? <strong>Haz clic en cualquier campo</strong> para escribirlo tú. No hace falta llenar todo de una: cada fase pide lo que necesita.</p>
+          <p class="brief-help">Este entregable se arma <strong>solo</strong> mientras conversas con el asistente. Los campos se habilitan a medida que avanzas de fase — como en el checklist de la izquierda. <strong>Haz clic en cualquier campo desbloqueado</strong> para escribirlo tú.</p>
           <div class="brief-block">
             <p class="section-label">Ciclo</p>
             <p class="mono-value" id="briefCycleTitle">Sin definir</p>
@@ -281,6 +281,16 @@
             <p class="section-label">Comportamiento objetivo</p>
             <p id="briefBehavior" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
             <p class="field-hint">Qué seller, haciendo qué, no está haciendo qué.</p>
+          </div>
+          <div class="brief-block">
+            <p class="section-label">Señal cuantitativa</p>
+            <p id="metricField" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <p class="field-hint">El dato que muestra que el comportamiento es un problema. Ej: "solo 12% configura en 72h".</p>
+          </div>
+          <div class="brief-block">
+            <p class="section-label">Segmento (cohorte)</p>
+            <p id="briefSegment" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <p class="field-hint">La cohorte conductual concreta. Ej: "sellers inactivos 30d", "registrados sin 1ª orden en 7d".</p>
           </div>
           <div class="brief-grid">
             <div class="brief-block">
@@ -292,12 +302,7 @@
               <select id="briefCogLevel" class="filter-select"></select>
             </div>
           </div>
-          <div class="brief-block">
-            <p class="section-label">Segmento (cohorte)</p>
-            <p id="briefSegment" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
-            <p class="field-hint">La cohorte conductual concreta. Ej: "sellers inactivos 30d", "registrados sin 1ª orden en 7d".</p>
-          </div>
-          <div class="brief-block">
+          <div class="brief-block phase-gated" data-unlock-phase="F1">
             <p class="section-label">Causa (B=MAP)</p>
             <p class="field-hint">¿Por qué no ocurre el comportamiento? Elige la causa raíz.</p>
             <div class="bmap-selector" id="briefCauseSelector">
@@ -310,24 +315,22 @@
               <label class="section-label" for="briefSubCausa">Sub-causa (opcional)</label>
               <select id="briefSubCausa" class="filter-select"></select>
             </div>
+            <p class="lock-note">🔒 Se habilita en F1 · Diagnóstico</p>
           </div>
-          <div class="brief-block">
+          <div class="brief-block phase-gated" data-unlock-phase="F1">
             <p class="section-label">Evidencia</p>
             <p class="field-hint">El gate de F1 pide 2 fuentes que converjan en la misma causa.</p>
             <p id="briefEvidence" class="confirm-field"><span class="field-cta">Clic para escribir la 1ª fuente</span></p>
             <p class="field-hint">Un dato que ya existe. Ej: "dashboard de operaciones: 12% configura en 72h".</p>
             <p id="secondSource" class="confirm-field"><span class="field-cta">Clic para escribir la 2ª fuente</span></p>
             <p class="field-hint">Una fuente distinta que confirma lo mismo. Ej: "encuesta de soporte: no saben que deben hacerlo".</p>
+            <p class="lock-note">🔒 Se habilita en F1 · Diagnóstico</p>
           </div>
-          <div class="brief-block">
+          <div class="brief-block phase-gated" data-unlock-phase="F2">
             <p class="section-label">Hipótesis de intervención</p>
             <p id="hypothesisField" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
-            <p class="field-hint">Se define en F2 · Intervención. Ej: "Si agregamos un checklist post-compra, sube la configuración del 2º envío".</p>
-          </div>
-          <div class="brief-block">
-            <p class="section-label">Métrica de éxito</p>
-            <p id="metricField" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
-            <p class="field-hint">El número que sube si funciona. Ej: "% de sellers con 2º envío en 72h".</p>
+            <p class="field-hint">Ej: "Si agregamos un checklist post-compra, sube la configuración del 2º envío".</p>
+            <p class="lock-note">🔒 Se habilita en F2 · Intervención</p>
           </div>
         </section>
 

@@ -1,6 +1,6 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
 import { markdownToPdfHtml } from "./src/exportService.js";
-import { FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL } from "./src/doctrina.js";
+import { PHASES, FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL } from "./src/doctrina.js";
 
 // <option> lists derived from the doctrine enums (2B).
 const subPerfilOptions = (cur = "") =>
@@ -1877,6 +1877,28 @@ function loadBriefFromCycle(cycle) {
   if (cycle?.transicion) cnt++;
   if (cycle?.causa) cnt++;
   setBriefProgress(Math.min(cnt, 11));
+
+  applyPhaseGating(cycle);
+}
+
+// Hilo conductor: los campos de fases futuras quedan visibles pero bloqueados
+// (atenuados + candado) hasta que el ciclo alcance esa fase — igual que el
+// checklist del gate. El switch a Experiment Card se bloquea hasta F3.
+function applyPhaseGating(cycle) {
+  const active = cycle?.fase_actual ?? cycle?.activePhase ?? "F0";
+  const activeIdx = Math.max(PHASES.indexOf(active), 0);
+  document.querySelectorAll(".phase-gated").forEach((block) => {
+    const unlockIdx = PHASES.indexOf(block.dataset.unlockPhase);
+    const locked = unlockIdx > activeIdx;
+    block.classList.toggle("is-locked", locked);
+    block.querySelectorAll("input, select, button, [contenteditable]").forEach((el) => { el.disabled = locked; });
+  });
+  const expLocked = activeIdx < PHASES.indexOf("F3");
+  if (experimentSwitch) {
+    experimentSwitch.disabled = expLocked;
+    experimentSwitch.title = expLocked ? "Se habilita en F3 · Experimento" : "";
+    experimentSwitch.classList.toggle("is-locked", expLocked);
+  }
 }
 
 // Fields required for a complete Intervention Brief; those without a value are
