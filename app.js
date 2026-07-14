@@ -1809,8 +1809,8 @@ function loadBriefFromCycle(cycle) {
   const briefEvidence = document.querySelector("#briefEvidence");
 
   setField(briefBehavior, b.behavior_statement?.value ?? null);
-  setField(briefSubProfile, cycle?.sub_perfil ? subPerfilLabel(cycle.sub_perfil) : null);
-  setField(briefCogLevel, b.nivel_cognitivo?.value ?? (cycle?.transicion ? transitionLabel(cycle.transicion) : null));
+  if (briefSubProfile) briefSubProfile.innerHTML = subPerfilOptions(cycle?.sub_perfil ?? "");
+  if (briefCogLevel) briefCogLevel.innerHTML = transitionOptions(cycle?.transicion ?? "");
   const briefSegment = document.querySelector("#briefSegment");
   setField(briefSegment, cycle?.segmento_objetivo ?? null);
   setField(briefEvidence, b.evidencia_primaria?.value ?? null);
@@ -1850,11 +1850,9 @@ function loadBriefFromCycle(cycle) {
   const mWarn = document.getElementById("metricTypeWarn");
   if (mWarn) mWarn.hidden = mType !== "actividad";
 
-  // Make brief fields inline-editable
+  // Make brief fields inline-editable (sub_perfil/nivel cognitivo son <select>, no free-text)
   makeFieldEditable(briefBehavior, "brief.behavior_statement");
-  makeFieldEditable(briefSubProfile, "sub_perfil");
   makeFieldEditable(briefSegment, "segmento_objetivo");
-  makeFieldEditable(briefCogLevel, "brief.nivel_cognitivo");
   makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
   makeFieldEditable(secondSource, "brief.segunda_fuente");
   makeFieldEditable(hypothesisField, "brief.hipotesis");
@@ -2192,6 +2190,22 @@ document.querySelector("#briefSubCausa")?.addEventListener("change", async (e) =
   const patch = { sub_causa: e.target.value || null };
   cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
   await updateCycle(patch);
+});
+
+document.querySelector("#briefSubProfile")?.addEventListener("change", async (e) => {
+  if (!currentCycleId) return;
+  const patch = { sub_perfil: e.target.value || null };
+  cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+  await updateCycle(patch);
+  if (e.target.value) showToast("Sub-perfil guardado ✓");
+});
+
+document.querySelector("#briefCogLevel")?.addEventListener("change", async (e) => {
+  if (!currentCycleId) return;
+  const patch = { transicion: e.target.value || null };
+  cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+  await updateCycle(patch);
+  if (e.target.value) showToast("Nivel cognitivo guardado ✓");
 });
 
 // B=MAP cause selector

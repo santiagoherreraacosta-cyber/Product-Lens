@@ -285,17 +285,17 @@
           <div class="brief-grid">
             <div class="brief-block">
               <p class="section-label">Sub-perfil</p>
-              <p id="briefSubProfile" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+              <select id="briefSubProfile" class="filter-select"></select>
             </div>
             <div class="brief-block">
               <p class="section-label">Nivel cognitivo</p>
-              <p id="briefCogLevel" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+              <select id="briefCogLevel" class="filter-select"></select>
             </div>
           </div>
           <div class="brief-block">
             <p class="section-label">Segmento (cohorte)</p>
             <p id="briefSegment" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
-            <p class="field-hint">La cohorte conductual. Ej: sellers inactivos 30d.</p>
+            <p class="field-hint">La cohorte conductual concreta. Ej: "sellers inactivos 30d", "registrados sin 1ª orden en 7d".</p>
           </div>
           <div class="brief-block">
             <p class="section-label">Causa (B=MAP)</p>
@@ -315,38 +315,68 @@
             <p class="section-label">Evidencia</p>
             <p class="field-hint">El gate de F1 pide 2 fuentes que converjan en la misma causa.</p>
             <p id="briefEvidence" class="confirm-field"><span class="field-cta">Clic para escribir la 1ª fuente</span></p>
+            <p class="field-hint">Un dato que ya existe. Ej: "dashboard de operaciones: 12% configura en 72h".</p>
             <p id="secondSource" class="confirm-field"><span class="field-cta">Clic para escribir la 2ª fuente</span></p>
+            <p class="field-hint">Una fuente distinta que confirma lo mismo. Ej: "encuesta de soporte: no saben que deben hacerlo".</p>
           </div>
           <div class="brief-block">
             <p class="section-label">Hipótesis de intervención</p>
             <p id="hypothesisField" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
-            <p class="field-hint">Se define en F2 · Intervención. "Si hacemos X, esperamos Y".</p>
+            <p class="field-hint">Se define en F2 · Intervención. Ej: "Si agregamos un checklist post-compra, sube la configuración del 2º envío".</p>
           </div>
           <div class="brief-block">
             <p class="section-label">Métrica de éxito</p>
             <p id="metricField" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <p class="field-hint">El número que sube si funciona. Ej: "% de sellers con 2º envío en 72h".</p>
           </div>
         </section>
 
         <section id="experimentBody" class="brief-body" hidden>
           <p class="brief-help">La ficha del experimento: cómo vas a probar la hipótesis. Se dimensiona en F3 y corre en F4. <strong>Haz clic en cualquier campo</strong> para completarlo.</p>
-          <div class="brief-block"><p class="section-label">Hipótesis</p><p id="experimentHypothesis" class="confirm-field"><span class="field-cta">Clic para escribir</span></p></div>
-          <div class="brief-block"><p class="section-label">Variable / intervención</p><p id="experimentVariable" class="confirm-field"><span class="field-cta">Clic para escribir</span></p></div>
+          <div class="brief-block">
+            <p class="section-label">Hipótesis</p>
+            <p id="experimentHypothesis" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <p class="field-hint">Ej: "Si mostramos un checklist post-compra, sube el 2º envío en 72h de 12% a 30%".</p>
+          </div>
+          <div class="brief-block">
+            <p class="section-label">Variable / intervención</p>
+            <p id="experimentVariable" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <p class="field-hint">Qué cambia exactamente para el seller. Ej: "checklist post-compra dentro de la app".</p>
+          </div>
           <div class="brief-grid">
-            <div class="brief-block"><p class="section-label">Métrica primaria</p><p id="experimentMetric" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <div class="brief-block">
+              <p class="section-label">Métrica primaria</p>
+              <p id="experimentMetric" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+              <p class="field-hint">El número que decide éxito o fracaso. Ej: "% con 2º envío en 72h".</p>
               <div class="metric-type" id="metricTypeToggle" role="radiogroup" aria-label="Tipo de métrica">
                 <button type="button" class="mt-btn" data-mtype="outcome" title="Mueve el resultado del seller (activación, recompra, GMV)">Outcome</button>
                 <button type="button" class="mt-btn" data-mtype="actividad" title="Mide uso/adopción, no resultado">Actividad</button>
               </div>
               <p id="metricTypeWarn" class="metric-warn" hidden>Mide actividad, no outcome — el éxito de un experimento no es adopción.</p>
             </div>
-            <div class="brief-block"><p class="section-label">Criterio de stop</p><p id="experimentStop" class="confirm-field"><span class="field-cta">Clic para escribir</span></p></div>
+            <div class="brief-block">
+              <p class="section-label">Criterio de stop</p>
+              <p id="experimentStop" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+              <p class="field-hint">Cuándo dejas de mirar y decides. Ej: "14 días o 400 sellers por grupo".</p>
+            </div>
           </div>
           <div class="brief-grid">
-            <div class="brief-block"><p class="section-label">Tamaño muestra</p><p id="experimentSample" class="confirm-field"><span class="field-cta">Clic para escribir</span></p></div>
-            <div class="brief-block"><p class="section-label">Duración</p><p id="experimentDuration" class="confirm-field"><span class="field-cta">Clic para escribir</span></p></div>
+            <div class="brief-block">
+              <p class="section-label">Tamaño muestra</p>
+              <p id="experimentSample" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+              <p class="field-hint">Cuántos sellers por grupo. Ej: "200 control + 200 tratamiento".</p>
+            </div>
+            <div class="brief-block">
+              <p class="section-label">Duración</p>
+              <p id="experimentDuration" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+              <p class="field-hint">Ej: "14 días".</p>
+            </div>
           </div>
-          <div class="brief-block"><p class="section-label">Tracking</p><p id="experimentTracking" class="confirm-field"><span class="field-cta">Clic para escribir</span></p></div>
+          <div class="brief-block">
+            <p class="section-label">Tracking</p>
+            <p id="experimentTracking" class="confirm-field"><span class="field-cta">Clic para escribir</span></p>
+            <p class="field-hint">El evento que el sistema registra para medir esto. Ej: "evento segundo_envio_configurado".</p>
+          </div>
           <div id="experimentStatus" class="running-status"><span></span>Borrador · listo para F3</div>
         </section>
 
