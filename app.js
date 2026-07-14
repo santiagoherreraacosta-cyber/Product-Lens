@@ -1195,7 +1195,10 @@ function renderExperimentStatus(cycle, phase) {
     if (startedAt) dayD = Math.max(1, Math.floor((Date.now() - new Date(startedAt).getTime()) / 86400000) + 1);
     const treatment = val(exp.treatment_pct);
     const baseline = val(exp.baseline_pct);
-    const tracking = exp.tracking_confirmed === true;
+    // Fuente de verdad: el gate F4 real (mismo criterio que bloquea F4→F5), no
+    // un flag propio — evita que el botón muestre "confirmado" mientras el
+    // gate real sigue pidiéndolo.
+    const tracking = getGateRequirements(cycle, "F4").find((r) => r.key === "trackingConfirmed")?.met ?? false;
     const bits = [
       dayD ? `día ${dayD}${totalD ? `/${totalD}` : ""}` : "",
       sample ? `muestra ${escapeHtml(sample)}` : "",
@@ -1215,13 +1218,14 @@ function renderExperimentStatus(cycle, phase) {
   }
 }
 
+// Escribe el campo que el gate F4 realmente lee (cycle.trackingConfirmed,
+// top-level) — no un flag anidado en experiment que el gate ignora.
 async function confirmTracking() {
   if (!currentCycleId) return;
-  const cycle = getCurrentCycle();
-  const experiment = { ...(cycle?.experiment ?? {}), tracking_confirmed: true };
-  cycles = cycles.map((c) => c.id === currentCycleId ? { ...c, experiment } : c);
+  const patch = { trackingConfirmed: true };
+  cycles = cycles.map((c) => c.id === currentCycleId ? { ...c, ...patch } : c);
   renderExperimentStatus(getCurrentCycle(), getActivePhase());
-  await updateCycle({ experiment });
+  await updateCycle(patch);
   showToast("Tracking confirmado. El experimento queda instrumentado.");
 }
 
@@ -1916,6 +1920,7 @@ const REQUIRED_BRIEF_FIELDS = [
   { key: "behavior_statement", label: "Comportamiento objetivo" },
   { key: "causa", label: "Causa B=MAP", topLevel: true },
   { key: "evidencia_primaria", label: "Evidencia primaria" },
+  { key: "segunda_fuente", label: "Segunda fuente de evidencia" },
   { key: "intervencion", label: "Intervención" },
   { key: "hipotesis", label: "Hipótesis de intervención" },
   { key: "senal_cuantitativa", label: "Métrica de éxito" },
@@ -1975,6 +1980,8 @@ const REQUIRED_FIELD_EL = {
   behavior_statement: "briefBehavior",
   causa: "briefCauseSelector",
   evidencia_primaria: "briefEvidence",
+  segunda_fuente: "secondSource",
+  intervencion: "briefIntervention",
   hipotesis: "hypothesisField",
   senal_cuantitativa: "metricField",
 };
