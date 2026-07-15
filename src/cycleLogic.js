@@ -1,7 +1,7 @@
 // Core cycle logic extracted from server.js so it can be unit-tested in
 // isolation (B7 — closes the "untested core logic" debt). These functions are
 // pure: no I/O, no globals.
-import { normalizeTransition, normalizeCausa, normalizeSubCausa } from "./doctrina.js";
+import { normalizeTransition, normalizeCausa, normalizeSubCausa, normalizeSesgo } from "./doctrina.js";
 
 // Recursively merges `source` into `target`. Plain objects merge key-by-key;
 // arrays and primitives replace. This is what fixes the brief-wipe bug: a
@@ -35,7 +35,7 @@ export function looksLikeFeature(title) {
 }
 
 export const BRIEF_FIELD_KEYS = ["behavior_statement", "evidencia_primaria", "segunda_fuente", "intervencion", "hipotesis", "senal_cuantitativa"];
-export const CYCLE_TOP_KEYS = ["transicion", "causa", "segmento_objetivo"];
+export const CYCLE_TOP_KEYS = ["transicion", "causa", "segmento_objetivo", "sesgo"];
 
 // Enums de doctrina: lo que el LLM sugiere para estos campos se normaliza a
 // keys canónicas; un valor fuera de doctrina se descarta (no se guarda basura).
@@ -44,6 +44,7 @@ export const CYCLE_TOP_KEYS = ["transicion", "causa", "segmento_objetivo"];
 const TOP_KEY_NORMALIZERS = {
   transicion: normalizeTransition,
   causa: normalizeCausa,
+  sesgo: normalizeSesgo,
 };
 
 // Applies LLM-extracted brief updates without ever overriding user-confirmed
@@ -75,6 +76,18 @@ export function applyBriefUpdates(cycle, updates) {
   if (typeof updates.sub_causa === "string" && updates.sub_causa.trim() && !cycle.sub_causa) {
     const sc = normalizeSubCausa(updates.sub_causa, patch.causa ?? cycle.causa);
     if (sc) { patch.sub_causa = sc; changed.push("sub_causa"); }
+  }
+  // F1 - proxy/2ª señal: el evento conductual medido es proxy de un shift
+  // cognitivo, no el shift en sí (filtro §6 del orquestador). Nunca sobreescribe
+  // un valor ya confirmado por el PM.
+  const proxyUpdate = updates.proxy_y_segunda_senal;
+  if (proxyUpdate && typeof proxyUpdate === "object" && !cycle.proxy_y_segunda_senal) {
+    const proxy = typeof proxyUpdate.proxy === "string" ? proxyUpdate.proxy.trim() : "";
+    const segundaSenal = typeof proxyUpdate.segunda_senal === "string" ? proxyUpdate.segunda_senal.trim() : "";
+    if (proxy || segundaSenal) {
+      patch.proxy_y_segunda_senal = { proxy, segunda_senal: segundaSenal };
+      changed.push("proxy_y_segunda_senal");
+    }
   }
   return { cycle: { ...cycle, ...patch }, changed };
 }

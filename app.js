@@ -1,6 +1,6 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
 import { markdownToPdfHtml } from "./src/exportService.js";
-import { PHASES, FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL } from "./src/doctrina.js";
+import { PHASES, FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL, SESGOS, SESGO_LABEL, TIPOS_SUPUESTO, TEST_ESCALERA, TEST_ELEGIDO_LABEL, DECISIONS_F3 } from "./src/doctrina.js";
 
 // <option> lists derived from the doctrine enums (2B).
 const subPerfilOptions = (cur = "") =>
@@ -10,6 +10,23 @@ const subPerfilOptions = (cur = "") =>
 const transitionOptions = (cur = "") =>
   ['<option value="">Transición…</option>']
     .concat(TRANSITIONS.map((t) => `<option value="${t}"${t === cur ? " selected" : ""}>${transitionLabel(t)}</option>`))
+    .join("");
+const sesgoOptions = (cur = "") =>
+  ['<option value="">Sesgo…</option>']
+    .concat(SESGOS.map((s) => `<option value="${s}"${s === cur ? " selected" : ""}>${SESGO_LABEL[s]}</option>`))
+    .join("");
+const tipoSupuestoOptions = (cur = "") =>
+  ['<option value="">Tipo de supuesto…</option>']
+    .concat(TIPOS_SUPUESTO.map((t) => `<option value="${t}"${t === cur ? " selected" : ""}>${t[0].toUpperCase()}${t.slice(1)}</option>`))
+    .join("");
+const testElegidoOptions = (cur = "") =>
+  ['<option value="">Test (escalera §8)…</option>']
+    .concat(TEST_ESCALERA.map((t) => `<option value="${t}"${t === cur ? " selected" : ""}>${TEST_ELEGIDO_LABEL[t]}</option>`))
+    .join("");
+const decisionF3Labels = { avanzar_f4: "Avanzar a F4", re_diagnosticar: "Re-diagnosticar", matar: "Matar" };
+const decisionF3Options = (cur = "") =>
+  ['<option value="">Decisión…</option>']
+    .concat(DECISIONS_F3.map((d) => `<option value="${d}"${d === cur ? " selected" : ""}>${decisionF3Labels[d]}</option>`))
     .join("");
 
 // --- Constants ---
@@ -61,9 +78,11 @@ const cyclesList = document.querySelector("#cyclesList");
 const patternsList = document.querySelector("#patternsList");
 const briefSwitch = document.querySelector("#briefSwitch");
 const experimentSwitch = document.querySelector("#experimentSwitch");
+const specSwitch = document.querySelector("#specSwitch");
 const deliverableTitle = document.querySelector("#deliverableTitle");
 const briefBody = document.querySelector("#briefBody");
 const experimentBody = document.querySelector("#experimentBody");
+const specBody = document.querySelector("#specBody");
 const paletteSearch = document.querySelector("#paletteSearch");
 const logoutButton = document.querySelector("#logoutButton");
 const userEmailEl = document.querySelector("#userEmail");
@@ -653,6 +672,9 @@ async function closeCycle() {
   const closureDecision = document.getElementById("closureDecision");
   const closureLearning = document.getElementById("closureLearning");
   const closureDelta = document.getElementById("closureDelta");
+  const closureActividad = document.getElementById("closureActividad");
+  const closureOutcome = document.getElementById("closureOutcome");
+  const closureChurn = document.getElementById("closureChurn");
   const patternName = document.getElementById("patternName");
   const patternType = document.getElementById("patternType");
   const learning = closureLearning?.value.trim() ?? "";
@@ -673,6 +695,9 @@ async function closeCycle() {
         decision: closureDecision?.value ?? "escalar",
         learning,
         delta: closureDelta?.value.trim() ?? null,
+        actividad: closureActividad?.value.trim() || null,
+        outcome: closureOutcome?.value.trim() || null,
+        churn_por_nivel: closureChurn?.value.trim() || null,
         pattern_name,
         tipo: patternType?.value ?? "patron",
       }),
@@ -733,34 +758,35 @@ async function loadPatterns() {
 const causeLabelEs = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : c === "P" ? "Prompt" : c;
 
 // A4 · unified library filtering state + facets
-const libFilters = { tipoCausa: "all", sub: "", level: "", search: "" };
+const libFilters = { tipoCausa: "all", sub: "", level: "", test: "", search: "" };
 function populateLibraryFacets() {
   const subs = [...new Set(patterns.map((p) => p.sub_perfil).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const levels = [...new Set(patterns.map((p) => p.transicion).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const tests = [...new Set(patterns.map((p) => p.test_elegido).filter(Boolean))]
+    .sort((a, b) => TEST_ESCALERA.indexOf(a) - TEST_ESCALERA.indexOf(b));
   // Rebuild options fully (placeholder + values) — no querySelector, so no
   // possible null dereference.
-  const fill = (sel, placeholder, values, cur, arrow) => {
+  const fill = (sel, placeholder, values, cur, labelFn) => {
     if (!sel) return;
     const opts = [`<option value="">${placeholder}</option>`].concat(
-      values.map((v) => {
-        const label = arrow ? transitionLabel(v) : subPerfilLabel(v);
-        return `<option value="${escapeHtml(v)}"${v === cur ? " selected" : ""}>${escapeHtml(label)}</option>`;
-      })
+      values.map((v) => `<option value="${escapeHtml(v)}"${v === cur ? " selected" : ""}>${escapeHtml(labelFn(v))}</option>`)
     );
     sel.innerHTML = opts.join("");
   };
-  fill(document.getElementById("patternSubProfile"), "Sub-perfil", subs, libFilters.sub, false);
-  fill(document.getElementById("patternLevel"), "Nivel cognitivo", levels, libFilters.level, true);
+  fill(document.getElementById("patternSubProfile"), "Sub-perfil", subs, libFilters.sub, subPerfilLabel);
+  fill(document.getElementById("patternLevel"), "Nivel cognitivo", levels, libFilters.level, transitionLabel);
+  fill(document.getElementById("patternTest"), "Test (F3)", tests, libFilters.test, (v) => TEST_ELEGIDO_LABEL[v] ?? v);
 }
 function applyLibraryFilters() {
-  const { tipoCausa, sub, level, search } = libFilters;
+  const { tipoCausa, sub, level, test, search } = libFilters;
   let list = patterns;
   if (tipoCausa === "patron" || tipoCausa === "anti_patron") list = list.filter((p) => p.tipo === tipoCausa);
   else if (["m", "a", "p"].includes(tipoCausa)) list = list.filter((p) => (p.causa ?? "").toUpperCase() === tipoCausa.toUpperCase());
   if (sub) list = list.filter((p) => p.sub_perfil === sub);
   if (level) list = list.filter((p) => p.transicion === level);
+  if (test) list = list.filter((p) => p.test_elegido === test);
   if (search) list = list.filter((p) =>
-    [p.nombre, p.aprendizaje, p.sub_perfil, p.causa, p.transicion].some((x) => (x ?? "").toLowerCase().includes(search)));
+    [p.nombre, p.aprendizaje, p.sub_perfil, p.causa, p.transicion, p.test_elegido].some((x) => (x ?? "").toLowerCase().includes(search)));
   renderPatternsList(list);
 }
 
@@ -1239,9 +1265,12 @@ function setDeliverable(next) {
   deliverable = next;
   briefBody.hidden = next !== "brief";
   experimentBody.hidden = next !== "experiment";
+  if (specBody) specBody.hidden = next !== "spec";
   briefSwitch.classList.toggle("active", next === "brief");
   experimentSwitch.classList.toggle("active", next === "experiment");
-  deliverableTitle.textContent = next === "brief" ? "Intervention Brief" : "Experiment Card";
+  specSwitch?.classList.toggle("active", next === "spec");
+  const DELIVERABLE_TITLE = { brief: "Intervention Brief", experiment: "Experiment Card", spec: "Spec conductual" };
+  deliverableTitle.textContent = DELIVERABLE_TITLE[next] ?? DELIVERABLE_TITLE.brief;
   progressText.textContent = next === "brief" ? `${filled} / 11 campos` : "0 / 9 campos";
   progressFill.style.width = next === "brief" ? `${Math.round((filled / 11) * 100)}%` : "0%";
 }
@@ -1764,6 +1793,37 @@ function setNestedPath(obj, path, value) {
   cur[keys[keys.length - 1]] = value;
 }
 
+const linesToArray = (text) => String(text ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
+
+// Wires a native input/select/checkbox/textarea (added for the F1–F5
+// structured fields, doctrina §4.1) to PATCH the cycle on change/blur.
+// Unlike makeFieldEditable (click-to-edit <p>), these elements are already
+// editable controls — wire once (guarded by dataset.structBound) and patch.
+function bindStructuredField(el, getPatch, evt = "change") {
+  if (!el || el.dataset.structBound) return;
+  el.dataset.structBound = "1";
+  el.addEventListener(evt, async () => {
+    if (!currentCycleId) return;
+    const patch = getPatch(el);
+    cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+    try {
+      await updateCycle(patch);
+    } catch {
+      showToast("Error al guardar el campo.", true);
+    }
+    renderActiveCycle();
+  });
+}
+
+// Plain-scalar structured fields (doctrina §4.1) written by makeFieldEditable
+// without the {value,confirmed} wrapper the LLM-suggested brief.* fields use.
+const PLAIN_SCALAR_PATHS = new Set([
+  "proxy_y_segunda_senal.proxy", "proxy_y_segunda_senal.segunda_senal",
+  "experiment.supuesto_mas_riesgoso", "experiment.por_que_este",
+  "experiment.resultado_confirma", "experiment.resultado_refuta", "experiment.costo_de_equivocarse",
+  "spec_conductual.comportamiento_objetivo", "spec_conductual.criterio_exito_conductual",
+]);
+
 // Make a brief/experiment panel field inline-editable. cyclePath is "brief.behavior_statement", "sub_perfil", etc.
 function makeFieldEditable(el, cyclePath) {
   if (!el) return;
@@ -1798,6 +1858,10 @@ function makeFieldEditable(el, cyclePath) {
       if (cyclePath === "sub_perfil" || cyclePath === "segmento_objetivo") {
         // Top-level scalar cycle fields (server normalizes sub_perfil to enum).
         patch[cyclePath] = val || null;
+      } else if (PLAIN_SCALAR_PATHS.has(cyclePath)) {
+        // Plain-scalar structured fields (doctrina §4.1) — no {value,confirmed}
+        // wrapper, unlike the LLM-suggested brief.* fields.
+        setNestedPath(patch, cyclePath, val || null);
       } else {
         setNestedPath(patch, cyclePath, { value: val, confirmed: !!val });
       }
@@ -1883,21 +1947,33 @@ function flashBriefFields(changed) {
 }
 
 // Read cycle.brief{} and cycle top-level fields → populate all brief panel DOM elements
+// Orchestrates the brief/experiment/spec panel refresh — split into one
+// function per section (below) to keep each piece's cognitive complexity low.
 function loadBriefFromCycle(cycle) {
-  const b = cycle?.brief ?? {};
-  const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
+  renderBriefCoreFields(cycle);
+  renderBriefCauseSection(cycle);
+  renderF1SesgoProxy(cycle);
+  renderF2Guardrails(cycle);
+  renderExperimentCard(cycle);
+  renderSpecConductual(cycle);
+  setBriefProgress(computeBriefProgress(cycle));
+  applyPhaseGating(cycle);
+}
 
-  // Brief panel fields
+// Comportamiento/segmento/evidencia/intervención/hipótesis/métrica — los
+// campos base del brief (F0–F2), presentes desde el arranque del panel.
+function renderBriefCoreFields(cycle) {
+  const b = cycle?.brief ?? {};
   const briefBehavior = document.querySelector("#briefBehavior");
   const briefSubProfile = document.querySelector("#briefSubProfile");
   const briefCogLevel = document.querySelector("#briefCogLevel");
   const briefEvidence = document.querySelector("#briefEvidence");
   const briefIntervention = document.querySelector("#briefIntervention");
+  const briefSegment = document.querySelector("#briefSegment");
 
   setField(briefBehavior, b.behavior_statement?.value ?? null);
   if (briefSubProfile) briefSubProfile.innerHTML = subPerfilOptions(cycle?.sub_perfil ?? "");
   if (briefCogLevel) briefCogLevel.innerHTML = transitionOptions(cycle?.transicion ?? "");
-  const briefSegment = document.querySelector("#briefSegment");
   setField(briefSegment, cycle?.segmento_objetivo ?? null);
   setConfirmableField(briefEvidence, b.evidencia_primaria);
   setConfirmableField(secondSource, b.segunda_fuente);
@@ -1905,60 +1981,6 @@ function loadBriefFromCycle(cycle) {
   setField(hypothesisField, b.hipotesis?.value ?? null);
   setField(metricField, b.senal_cuantitativa?.value ?? null);
 
-  // B=MAP selector sync + estado de confirmación. El botón activo por sí solo
-  // no distingue "la IA lo sugirió" de "tú lo confirmaste" — pero el gate F1
-  // sí exige justo esa distinción (causa_source === "pm_confirmed"). Sin este
-  // texto, el botón resaltado podía hacer creer que la causa ya quedó
-  // confirmada cuando en realidad el gate seguía pidiendo el clic.
-  const activeCause = cycle?.causa;
-  document.querySelectorAll(".bmap-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.cause === activeCause));
-  const briefCauseEl = document.getElementById("briefCause");
-  if (briefCauseEl) {
-    const causaConfirmed = cycle?.causa_source === "pm_confirmed" || b.causa?.confirmed === true;
-    if (!activeCause) {
-      briefCauseEl.innerHTML = '<span class="field-cta">Elige una causa arriba</span>';
-      briefCauseEl.classList.add("confirm-field");
-      briefCauseEl.classList.remove("mono-value");
-    } else if (causaConfirmed) {
-      briefCauseEl.textContent = `Confirmada: ${causeMap[activeCause] ?? activeCause}`;
-      briefCauseEl.classList.remove("confirm-field");
-      briefCauseEl.classList.add("mono-value");
-    } else {
-      briefCauseEl.innerHTML = `<strong>Sugerida por la IA:</strong> ${causeMap[activeCause] ?? activeCause} — clic arriba para confirmarla`;
-      briefCauseEl.classList.add("confirm-field");
-      briefCauseEl.classList.remove("mono-value");
-    }
-  }
-  renderSubCausa(cycle);
-
-  // Experiment card — all fields
-  const exp = cycle?.experiment ?? {};
-  const expStr = (v) => v?.value ?? (typeof v === "string" ? v : null);
-  const expHypothesis = document.querySelector("#experimentHypothesis");
-  const expVariable = document.querySelector("#experimentVariable");
-  const expMetric = document.querySelector("#experimentMetric");
-  const expStop = document.querySelector("#experimentStop");
-  const expSample = document.querySelector("#experimentSample");
-  const expDuration = document.querySelector("#experimentDuration");
-  const expTracking = document.querySelector("#experimentTracking");
-
-  setField(expHypothesis, expStr(exp.hipotesis));
-  setField(expVariable, expStr(exp.variable));
-  setField(expMetric, expStr(exp.metrica_primaria));
-  setField(expStop, expStr(exp.criterio_stop));
-  setField(expSample, expStr(exp.tamano_muestra));
-  setField(expDuration, expStr(exp.duracion));
-  const trackVal = Array.isArray(exp.tracking_eventos) && exp.tracking_eventos.length
-    ? exp.tracking_eventos.join(", ") : expStr(exp.tracking_eventos);
-  setField(expTracking, trackVal);
-
-  // 2D - honestidad: estado del toggle outcome/actividad + advertencia.
-  const mType = exp.metrica_tipo ?? null;
-  document.querySelectorAll("#metricTypeToggle .mt-btn").forEach((b) => b.classList.toggle("active", b.dataset.mtype === mType));
-  const mWarn = document.getElementById("metricTypeWarn");
-  if (mWarn) mWarn.hidden = mType !== "actividad";
-
-  // Make brief fields inline-editable (sub_perfil/nivel cognitivo son <select>, no free-text)
   makeFieldEditable(briefBehavior, "brief.behavior_statement");
   makeFieldEditable(briefSegment, "segmento_objetivo");
   makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
@@ -1966,28 +1988,218 @@ function loadBriefFromCycle(cycle) {
   makeFieldEditable(briefIntervention, "brief.intervencion");
   makeFieldEditable(hypothesisField, "brief.hipotesis");
   makeFieldEditable(metricField, "brief.senal_cuantitativa");
+}
 
-  // Make experiment fields inline-editable
-  makeFieldEditable(expHypothesis, "experiment.hipotesis");
-  makeFieldEditable(expVariable, "experiment.variable");
-  makeFieldEditable(expMetric, "experiment.metrica_primaria");
-  makeFieldEditable(expStop, "experiment.criterio_stop");
-  makeFieldEditable(expSample, "experiment.tamano_muestra");
-  makeFieldEditable(expDuration, "experiment.duracion");
+// B=MAP selector sync + estado de confirmación. El botón activo por sí solo
+// no distingue "la IA lo sugirió" de "tú lo confirmaste" — pero el gate F1
+// sí exige justo esa distinción (causa_source === "pm_confirmed"). Sin este
+// texto, el botón resaltado podía hacer creer que la causa ya quedó
+// confirmada cuando en realidad el gate seguía pidiendo el clic.
+function renderBriefCauseSection(cycle) {
+  const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
+  const activeCause = cycle?.causa;
+  document.querySelectorAll(".bmap-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.cause === activeCause));
+  const briefCauseEl = document.getElementById("briefCause");
+  if (briefCauseEl) {
+    const causaConfirmed = cycle?.causa_source === "pm_confirmed" || cycle?.brief?.causa?.confirmed === true;
+    briefCauseEl.classList.toggle("confirm-field", !activeCause || !causaConfirmed);
+    briefCauseEl.classList.toggle("mono-value", !!activeCause && causaConfirmed);
+    if (!activeCause) {
+      briefCauseEl.innerHTML = '<span class="field-cta">Elige una causa arriba</span>';
+    } else if (causaConfirmed) {
+      briefCauseEl.textContent = `Confirmada: ${causeMap[activeCause] ?? activeCause}`;
+    } else {
+      briefCauseEl.innerHTML = `<strong>Sugerida por la IA:</strong> ${causeMap[activeCause] ?? activeCause} — clic arriba para confirmarla`;
+    }
+  }
+  renderSubCausa(cycle);
+}
+
+// F1 — sesgo + proxy/2ª señal (doctrina §4.1)
+function renderF1SesgoProxy(cycle) {
+  const briefSesgo = document.querySelector("#briefSesgo");
+  if (briefSesgo) briefSesgo.innerHTML = sesgoOptions(cycle?.sesgo ?? "");
+  const proxyData = cycle?.proxy_y_segunda_senal ?? {};
+  const briefProxy = document.querySelector("#briefProxy");
+  const briefSegundaSenal = document.querySelector("#briefSegundaSenal");
+  setField(briefProxy, proxyData.proxy || null);
+  setField(briefSegundaSenal, proxyData.segunda_senal || null);
+  makeFieldEditable(briefProxy, "proxy_y_segunda_senal.proxy");
+  makeFieldEditable(briefSegundaSenal, "proxy_y_segunda_senal.segunda_senal");
+  bindStructuredField(briefSesgo, (el) => ({ sesgo: el.value || null }));
+}
+
+// Binds a group of DOM elements (checkbox/input/textarea) to nested cycle
+// patch paths, populating the current value first. Shared by the SDT/hook/
+// fricción loops below so each caller stays a flat, low-branching block.
+function bindFieldGroup(els, readValue, applyValue, patchFor, evt) {
+  for (const [key, el] of Object.entries(els)) {
+    if (el) applyValue(el, key);
+    bindStructuredField(el, (e) => patchFor(key, readValue(e)), evt);
+  }
+}
+
+// F2 — guardrails SDT + jueves en la tarde + anti-roadmap + fricción + hook
+function renderF2Guardrails(cycle) {
+  const sdt = cycle?.brief?.sdt ?? {};
+  for (const dim of ["autonomia", "mastery", "relatedness"]) {
+    const label = dim[0].toUpperCase() + dim.slice(1);
+    const checkEl = document.getElementById(`sdt${label}Check`);
+    const notaEl = document.getElementById(`sdt${label}Nota`);
+    if (checkEl) checkEl.checked = sdt[dim]?.check === true;
+    if (notaEl) notaEl.value = sdt[dim]?.nota ?? "";
+    bindStructuredField(checkEl, (el) => ({ brief: { sdt: { [dim]: { check: el.checked } } } }));
+    bindStructuredField(notaEl, (el) => ({ brief: { sdt: { [dim]: { nota: el.value } } } }), "blur");
+  }
+
+  const juevesEl = document.getElementById("juevesTardeCheck");
+  if (juevesEl) juevesEl.checked = cycle?.brief?.jueves_en_la_tarde?.check === true;
+  bindStructuredField(juevesEl, (el) => ({ brief: { jueves_en_la_tarde: { check: el.checked } } }));
+  const antiRoadmapEl = document.getElementById("antiRoadmapCheck");
+  if (antiRoadmapEl) antiRoadmapEl.checked = cycle?.brief?.anti_roadmap?.check === true;
+  bindStructuredField(antiRoadmapEl, (el) => ({ brief: { anti_roadmap: { check: el.checked } } }));
+
+  const friccion = cycle?.brief?.friccion ?? {};
+  const friccionEls = {
+    eliminar: document.getElementById("friccionEliminar"),
+    preservar: document.getElementById("friccionPreservar"),
+    es_inversion: document.getElementById("friccionInversion"),
+  };
+  bindFieldGroup(friccionEls,
+    (e) => linesToArray(e.value),
+    (el, key) => { el.value = (friccion[key] ?? []).join("\n"); },
+    (key, val) => ({ brief: { friccion: { [key]: val } } }),
+    "blur");
+
+  const hook = cycle?.brief?.hook ?? {};
+  const hookEls = {
+    trigger: document.getElementById("hookTrigger"),
+    action: document.getElementById("hookAction"),
+    variable_reward: document.getElementById("hookReward"),
+    investment_phase: document.getElementById("hookInvestment"),
+  };
+  bindFieldGroup(hookEls,
+    (e) => e.value,
+    (el, key) => { el.value = hook[key] ?? ""; },
+    (key, val) => ({ brief: { hook: { [key]: val } } }),
+    "blur");
+}
+
+// Experiment Card — hipótesis/variable/tracking + escalera de validación F3
+// (supuesto más riesgoso, test elegido, confianza, decisión) + A/B opcional.
+function renderExperimentCard(cycle) {
+  const exp = cycle?.experiment ?? {};
+  const expStr = (v) => v?.value ?? (typeof v === "string" ? v : null);
+  const fields = {
+    experimentHypothesis: ["hipotesis", "experiment.hipotesis"],
+    experimentVariable: ["variable", "experiment.variable"],
+    experimentMetric: ["metrica_primaria", "experiment.metrica_primaria"],
+    experimentStop: ["criterio_stop", "experiment.criterio_stop"],
+    experimentSample: ["tamano_muestra", "experiment.tamano_muestra"],
+    experimentDuration: ["duracion", "experiment.duracion"],
+  };
+  for (const [elId, [expKey, path]] of Object.entries(fields)) {
+    const el = document.querySelector(`#${elId}`);
+    setField(el, expStr(exp[expKey]));
+    makeFieldEditable(el, path);
+  }
+  const expTracking = document.querySelector("#experimentTracking");
+  const trackVal = Array.isArray(exp.tracking_eventos) && exp.tracking_eventos.length
+    ? exp.tracking_eventos.join(", ") : expStr(exp.tracking_eventos);
+  setField(expTracking, trackVal);
   makeFieldEditable(expTracking, "experiment.tracking_eventos");
 
-  // Progress: count confirmed brief sub-objects + filled top-level scalars.
-  // causa cuenta UNA vez vía cycle.causa (no también vía brief.causa.confirmed,
-  // que se escribe en paralelo) para no duplicar el mismo dato.
+  // 2D - honestidad: estado del toggle outcome/actividad + advertencia.
+  const mType = exp.metrica_tipo ?? null;
+  document.querySelectorAll("#metricTypeToggle .mt-btn").forEach((b) => b.classList.toggle("active", b.dataset.mtype === mType));
+  const mWarn = document.getElementById("metricTypeWarn");
+  if (mWarn) mWarn.hidden = mType !== "actividad";
+
+  renderF3ValidationLadder(exp);
+}
+
+// F3 — escalera de validación (§8): supuesto más riesgoso, test elegido, etc.
+function renderF3ValidationLadder(exp) {
+  const textFields = {
+    experimentSupuesto: ["supuesto_mas_riesgoso", "experiment.supuesto_mas_riesgoso"],
+    experimentPorQueEste: ["por_que_este", "experiment.por_que_este"],
+    experimentResultadoConfirma: ["resultado_confirma", "experiment.resultado_confirma"],
+    experimentResultadoRefuta: ["resultado_refuta", "experiment.resultado_refuta"],
+    experimentCostoEquivocarse: ["costo_de_equivocarse", "experiment.costo_de_equivocarse"],
+  };
+  for (const [elId, [expKey, path]] of Object.entries(textFields)) {
+    const el = document.querySelector(`#${elId}`);
+    setField(el, exp[expKey] || null);
+    makeFieldEditable(el, path);
+  }
+
+  const expTipoSupuesto = document.getElementById("experimentTipoSupuesto");
+  const expTestElegido = document.getElementById("experimentTestElegido");
+  const expConfianza = document.getElementById("experimentConfianza");
+  const expDecisionF3 = document.getElementById("experimentDecisionF3");
+  if (expTipoSupuesto) expTipoSupuesto.innerHTML = tipoSupuestoOptions(exp.tipo_supuesto ?? "");
+  if (expTestElegido) expTestElegido.innerHTML = testElegidoOptions(exp.test_elegido ?? "");
+  if (expConfianza) expConfianza.value = exp.confianza != null ? String(exp.confianza) : "";
+  if (expDecisionF3) expDecisionF3.innerHTML = decisionF3Options(exp.decision ?? "");
+  bindStructuredField(expTipoSupuesto, (el) => ({ experiment: { tipo_supuesto: el.value || null } }));
+  bindStructuredField(expTestElegido, (el) => ({ experiment: { test_elegido: el.value || null } }));
+  bindStructuredField(expConfianza, (el) => ({ experiment: { confianza: el.value ? Number(el.value) : null } }));
+  bindStructuredField(expDecisionF3, (el) => ({ experiment: { decision: el.value || null } }));
+}
+
+// F4 — spec conductual (el handoff a tech, doctrina §4.1)
+function renderSpecConductual(cycle) {
+  const spec = cycle?.spec_conductual ?? {};
+  const specComportamiento = document.querySelector("#specComportamiento");
+  const specCriterioExito = document.querySelector("#specCriterioExito");
+  setField(specComportamiento, spec.comportamiento_objetivo || null);
+  setField(specCriterioExito, spec.criterio_exito_conductual || null);
+  makeFieldEditable(specComportamiento, "spec_conductual.comportamiento_objetivo");
+  makeFieldEditable(specCriterioExito, "spec_conductual.criterio_exito_conductual");
+
+  const loop = spec.loop_completo ?? {};
+  const loopEls = {
+    trigger: document.getElementById("specTrigger"), action: document.getElementById("specAction"),
+    reward: document.getElementById("specReward"), investment: document.getElementById("specInvestment"),
+  };
+  bindFieldGroup(loopEls,
+    (e) => e.value,
+    (el, key) => { el.value = loop[key] ?? ""; },
+    (key, val) => ({ spec_conductual: { loop_completo: { [key]: val } } }),
+    "blur");
+
+  const specFriccion = spec.friccion ?? {};
+  const specFriccionEls = {
+    elimina: document.getElementById("specFriccionElimina"),
+    preserva: document.getElementById("specFriccionPreserva"),
+    invierte: document.getElementById("specFriccionInvierte"),
+  };
+  bindFieldGroup(specFriccionEls,
+    (e) => linesToArray(e.value),
+    (el, key) => { el.value = (specFriccion[key] ?? []).join("\n"); },
+    (key, val) => ({ spec_conductual: { friccion: { [key]: val } } }),
+    "blur");
+
+  const specCopy = document.getElementById("specCopyPorNivel");
+  if (specCopy) specCopy.value = spec.copy_por_nivel_cognitivo ?? "";
+  bindStructuredField(specCopy, (e) => ({ spec_conductual: { copy_por_nivel_cognitivo: e.value } }), "blur");
+  const specAnti = document.getElementById("specAntiPatrones");
+  if (specAnti) specAnti.value = (spec.anti_patrones ?? []).join("\n");
+  bindStructuredField(specAnti, (e) => ({ spec_conductual: { anti_patrones: linesToArray(e.value) } }), "blur");
+}
+
+// Progress: cuenta sub-objetos confirmados del brief + escalares top-level
+// llenos. causa cuenta UNA vez vía cycle.causa (no también vía
+// brief.causa.confirmed, que se escribe en paralelo) para no duplicar el dato.
+function computeBriefProgress(cycle) {
+  const b = cycle?.brief ?? {};
   const confirmedFields = [b.behavior_statement, b.senal_cuantitativa, b.evidencia_primaria, b.segunda_fuente, b.intervencion, b.hipotesis];
   let cnt = confirmedFields.filter((f) => f?.confirmed).length;
   if (cycle?.segmento_objetivo) cnt++;
   if (cycle?.sub_perfil) cnt++;
   if (cycle?.transicion) cnt++;
   if (cycle?.causa) cnt++;
-  setBriefProgress(cnt);
-
-  applyPhaseGating(cycle);
+  return cnt;
 }
 
 // Hilo conductor: los campos de fases futuras quedan visibles pero bloqueados
@@ -2005,9 +2217,19 @@ function applyPhaseGating(cycle) {
   const expLocked = activeIdx < PHASES.indexOf("F3");
   if (experimentSwitch) {
     experimentSwitch.disabled = expLocked;
-    experimentSwitch.title = expLocked ? "Se habilita en F3 · Experimento" : "";
+    experimentSwitch.title = expLocked ? `Se habilita en F3 · ${FASE_LABEL.F3}` : "";
     experimentSwitch.classList.toggle("is-locked", expLocked);
   }
+  const specLocked = activeIdx < PHASES.indexOf("F4");
+  if (specSwitch) {
+    specSwitch.disabled = specLocked;
+    specSwitch.title = specLocked ? `Se habilita en F4 · ${FASE_LABEL.F4}` : "";
+    specSwitch.classList.toggle("is-locked", specLocked);
+  }
+  // A/B fields solo aplican cuando test_elegido = "ab" (doctrina §4.1 — el A/B
+  // ya no es el default de F3).
+  const abOnly = document.getElementById("experimentAbOnly");
+  if (abOnly) abOnly.classList.toggle("is-locked", (cycle?.experiment?.test_elegido ?? null) !== "ab");
 }
 
 // Fields required for a complete Intervention Brief; those without a value are
@@ -2638,8 +2860,21 @@ document.querySelectorAll("[data-example-cycle]").forEach((btn) => {
   btn.addEventListener("click", () => createCycle(btn.dataset.exampleCycle));
 });
 
+// Quickstart (Cambio 7): un clic, un comportamiento real, directo a F0 — sin
+// pasar por el manual. Usa el primer ejemplo como punto de partida.
+document.getElementById("quickstartButton")?.addEventListener("click", async () => {
+  const firstExample = document.querySelector("[data-example-cycle]")?.dataset.exampleCycle;
+  if (!firstExample) { openNewCycleModal(); return; }
+  await createCycle(firstExample);
+  showToast("Ciclo creado. Sigue el checklist de la izquierda — cada campo se habilita al llegar a su fase.");
+});
+document.querySelectorAll("[data-open-context]").forEach((el) => {
+  el.addEventListener("click", (e) => { e.preventDefault(); setView("context"); });
+});
+
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));
 experimentSwitch?.addEventListener("click", () => setDeliverable("experiment"));
+specSwitch?.addEventListener("click", () => setDeliverable("spec"));
 
 // Library filters — unified (A4). Scoped to #patternFilters (not the Home row).
 document.querySelector("#patternFilters")?.addEventListener("click", (e) => {
@@ -2652,6 +2887,7 @@ document.querySelector("#patternFilters")?.addEventListener("click", (e) => {
 });
 document.querySelector("#patternSubProfile")?.addEventListener("change", (e) => { libFilters.sub = e.target.value; applyLibraryFilters(); });
 document.querySelector("#patternLevel")?.addEventListener("change", (e) => { libFilters.level = e.target.value; applyLibraryFilters(); });
+document.querySelector("#patternTest")?.addEventListener("change", (e) => { libFilters.test = e.target.value; applyLibraryFilters(); });
 
 let _searchTimer = null;
 document.querySelector("#patternSearch")?.addEventListener("input", (e) => {
