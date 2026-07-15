@@ -698,7 +698,6 @@ async function closeCycle() {
       renderStepper();
       renderIterationBanner(cycle.iterationCount ?? 2);
       addAiNote(`Iteración ${cycle.iterationCount ?? 2} — de vuelta en F1 · ${FASE_LABEL.F1} para re-diagnosticar.`);
-      if (closeCycleBtn) { closeCycleBtn.disabled = false; closeCycleBtn.textContent = "Cerrar ciclo y crear patrón"; }
       return;
     }
     patterns.push(pattern);
@@ -711,6 +710,10 @@ async function closeCycle() {
     setView("home");
   } catch {
     showToast("No se pudo cerrar el ciclo. Intenta de nuevo.", true);
+  } finally {
+    // Siempre restaura el botón — antes, un error del servidor (res.ok===false,
+    // ej. 409 por ciclo ya cerrado en otra pestaña) lo dejaba atascado en
+    // "Guardando…" y deshabilitado para siempre, sin forma de reintentar.
     if (closeCycleBtn) { closeCycleBtn.disabled = false; closeCycleBtn.textContent = "Cerrar ciclo y crear patrón"; }
   }
 }
@@ -1151,8 +1154,11 @@ async function saveContextDocument(section, data) {
   } catch (error) {
     showToast(error.message, true);
   } finally {
+    // Restaura la etiqueta real del botón (index.html: "Guardar ✓"). Tras un
+    // error, el botón se quedaba diciendo "Guardar como admin" — una acción
+    // que no existe — en vez de volver a su estado normal.
     button.disabled = false;
-    button.textContent = "Guardar como admin";
+    button.textContent = "Guardar ✓";
   }
 }
 
@@ -1666,19 +1672,21 @@ function renderIterationBanner(count) {
 }
 
 function renderBriefState() {
-  const accepted = isRiskAccepted();
-  riskTag.classList.toggle("is-hidden", !accepted);
-  if (accepted) {
-    const cycle = getCurrentCycle();
-    const who = currentUser?.email ?? "usuario";
-    // Reflect the actual last accepted risk (recorded server-side) instead of a
-    // hardcoded phrase.
-    const lastRisk = (cycle?.risks ?? []).filter((r) => !r.resolvedAt).slice(-1)[0];
-    const phase = lastRisk?.phase ?? "F1";
-    const text = lastRisk?.text ?? "Avance de fase con gate incompleto.";
-    const stamp = lastRisk?.acceptedAt ?? cycle?.updatedAt;
-    const when = stamp ? new Date(stamp).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
-    riskTag.innerHTML = `<span>${escapeHtml(phase)}</span> ${escapeHtml(text)} Riesgo aceptado por ${escapeHtml(who)} · ${escapeHtml(when)}.`;
+  const cycle = getCurrentCycle();
+  // "Riesgos asumidos" es plural: mostraba solo el último riesgo aceptado y
+  // silenciaba los anteriores del mismo ciclo (un ciclo puede saltar varios
+  // gates). Ahora lista todos los abiertos, igual que el brief exportado.
+  const openRisks = (cycle?.risks ?? []).filter((r) => !r.resolvedAt);
+  riskTag.classList.toggle("is-hidden", openRisks.length === 0);
+  if (openRisks.length) {
+    riskTag.innerHTML = openRisks.map((r) => {
+      // Atribuye a quien realmente aceptó el riesgo (r.acceptedBy, grabado por
+      // el server) — no al usuario con sesión activa ahora mismo, que puede
+      // no ser la misma persona.
+      const who = r.acceptedBy?.name || r.acceptedBy?.id || "usuario";
+      const when = r.acceptedAt ? new Date(r.acceptedAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
+      return `<div class="risk-tag"><span>${escapeHtml(r.phase)}</span> ${escapeHtml(r.text)} Riesgo aceptado por ${escapeHtml(who)} · ${escapeHtml(when)}.</div>`;
+    }).join("");
   }
   setDeliverable(deliverable);
 }
