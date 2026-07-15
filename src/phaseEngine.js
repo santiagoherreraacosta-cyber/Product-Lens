@@ -16,6 +16,7 @@ const GATE_REQUIREMENTS = {
   F1: [
     { key: "sources", message: "Faltan al menos 2 fuentes de evidencia.", isMet: hasAtLeastTwoSources },
     { key: "bmapCause", message: "Falta confirmar la causa B=MAP (Motivación, Ability o Prompt) — la sugerida por la IA no basta.", isMet: hasBmapCause },
+    { key: "sesgo", message: "Falta nombrar el sesgo específico (present_bias, choice_overload, ambigüedad, status_quo o loss_aversion) — cada uno tiene su antídoto.", isMet: hasSesgo },
   ],
   F2: [
     { key: "intervention", message: "Falta la intervención.", isMet: hasIntervention },
@@ -121,6 +122,13 @@ function hasAtLeastTwoSources(cycle) {
   return confirmed("evidencia_primaria") && confirmed("segunda_fuente");
 }
 
+// F1 — sesgo específico (doctrina §4.1, §7 del orquestador): sin esto, el
+// selector estructurado quedaba opcional en la práctica pese a estar en el
+// gate table de docs/doctrina-lente.md §4.
+function hasSesgo(cycle) {
+  return hasText(cycle.sesgo);
+}
+
 function hasBmapCause(cycle) {
   const generic = cycle.cause ?? cycle.diagnosis?.cause ?? cycle.bmapCause;
   if (["Motivation", "Ability", "Prompt"].includes(String(generic ?? ""))) return true;
@@ -187,11 +195,14 @@ function hasCausalidadValidada(cycle) {
 }
 
 // --- F4: spec conductual (el handoff a tech), doctrina §4.1 ---
+// El loop debe estar COMPLETO (Trigger→Action→Reward→Investment) — un solo
+// campo lleno no basta, si no tech sigue teniendo que adivinar el resto.
+const LOOP_KEYS = ["trigger", "action", "reward", "investment"];
 function hasSpecConductual(cycle) {
   const spec = cycle.spec_conductual;
   if (!spec) return false;
   return hasText(spec.comportamiento_objetivo) && hasText(spec.criterio_exito_conductual)
-    && spec.loop_completo && Object.values(spec.loop_completo).some(hasText);
+    && LOOP_KEYS.every((k) => hasText(spec.loop_completo?.[k]));
 }
 
 function hasTrackingConfirmed(cycle) {

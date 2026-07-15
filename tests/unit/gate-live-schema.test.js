@@ -25,9 +25,14 @@ test("F1: causa M/A/P sin confirmar NO cumple el gate (sigue faltando bmapCause)
   assert.ok(keys(cycle, "F1").includes("bmapCause"));
 });
 
-test("F1: causa confirmada por el humano (pm_confirmed) + 2 fuentes → gate completo", () => {
-  const cycle = baseF1Cycle({ causa: "A", causa_source: "pm_confirmed" });
+test("F1: causa confirmada por el humano (pm_confirmed) + 2 fuentes + sesgo → gate completo", () => {
+  const cycle = baseF1Cycle({ causa: "A", causa_source: "pm_confirmed", sesgo: "choice_overload" });
   assert.deepEqual(getMissingGateRequirements(cycle, "F1"), []);
+});
+
+test("F1: causa y fuentes completas pero sin sesgo → falta 'sesgo'", () => {
+  const cycle = baseF1Cycle({ causa: "A", causa_source: "pm_confirmed" });
+  assert.deepEqual(keys(cycle, "F1"), ["sesgo"]);
 });
 
 test("F1: causa confirmada vía brief.causa.confirmed también cuenta", () => {

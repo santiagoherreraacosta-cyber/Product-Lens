@@ -126,6 +126,17 @@ test("F4 gate: sin spec_conductual, falta 'specConductual'", () => {
   assert.ok(keys(baseF4Cycle(), "F4").includes("specConductual"));
 });
 
+test("F4 gate: un loop incompleto (solo trigger) NO cumple el gate — el handoff a tech no puede ser parcial", () => {
+  const cycle = baseF4Cycle({
+    spec_conductual: {
+      comportamiento_objetivo: "configura el 2º envío en 72h",
+      loop_completo: { trigger: "push" },
+      criterio_exito_conductual: "el seller configuró el 2º envío",
+    },
+  });
+  assert.ok(keys(cycle, "F4").includes("specConductual"));
+});
+
 test("F4 gate: spec_conductual completo (comportamiento + loop + criterio) cumple el gate", () => {
   const cycle = baseF4Cycle({
     spec_conductual: {
