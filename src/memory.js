@@ -57,7 +57,11 @@ export function activeCycleBlock(cycle) {
     causa: cycle.causa,
     causa_source: cycle.causa_source,
     brief: cycle.brief,
-    riesgos: cycle.riesgos,
+    // cycle.risks (no "riesgos"): acceptRisk() en phaseEngine.js escribe ahí.
+    // El campo "riesgos" que existía en el schema de creación de ciclo nunca
+    // se llenaba — el asistente nunca veía los riesgos del ciclo activo pese
+    // a que 00_Orquestador.md §11 promete inyectarlos.
+    riesgos: cycle.risks,
     estado: cycle.estado,
   }, null, 2);
 }

@@ -67,6 +67,7 @@ test("applyBriefUpdates tolerates missing updates", () => {
 
 test("resolveRisk marks the matching risk resolved without touching others", () => {
   const base = {
+    riskAccepted: true,
     risks: [
       { id: "r1", phase: "F1", text: "1 sola fuente", resolvedAt: null },
       { id: "r2", phase: "F3", text: "peeking", resolvedAt: null },
@@ -78,6 +79,14 @@ test("resolveRisk marks the matching risk resolved without touching others", () 
   assert.deepEqual(cycle.risks[0].resolvedBy, { id: "u1", name: "pm@dropi.co" });
   // r2 untouched
   assert.equal(cycle.risks[1].resolvedAt, null);
+  // r2 still open -> riskAccepted stays true (Home card badge must stay accurate)
+  assert.equal(cycle.riskAccepted, true);
+});
+
+test("resolveRisk clears riskAccepted once the last open risk is resolved", () => {
+  const base = { riskAccepted: true, risks: [{ id: "r1", phase: "F1", text: "1 sola fuente", resolvedAt: null }] };
+  const { cycle } = resolveRisk(base, "r1", { id: "u1" }, "2026-01-01T00:00:00.000Z");
+  assert.equal(cycle.riskAccepted, false);
 });
 
 test("resolveRisk returns found:false for an unknown riskId, cycle unchanged", () => {

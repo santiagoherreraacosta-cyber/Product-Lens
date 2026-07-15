@@ -1,7 +1,7 @@
 // Unit tests for the context assembler (PR-M1 · Contexto total).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { patternDigest, cyclesIndex, decisionsDigest, assembleSystemContext } from "../../src/memory.js";
+import { patternDigest, cyclesIndex, decisionsDigest, assembleSystemContext, activeCycleBlock } from "../../src/memory.js";
 
 test("patternDigest renders one line per pattern with tipo/causa/sub-perfil/aprendizaje", () => {
   const out = patternDigest([
@@ -44,6 +44,18 @@ test("decisionsDigest renders newest-first with tipo/causa/texto", () => {
 
 test("decisionsDigest handles empty ledger", () => {
   assert.match(decisionsDigest([]), /Aún no hay decisiones/);
+});
+
+test("activeCycleBlock injects cycle.risks (not the dead 'riesgos' field)", () => {
+  const cycle = {
+    fase_actual: "F1",
+    causa: "A",
+    risks: [{ id: "r1", phase: "F1", text: "1 sola fuente" }],
+    riesgos: [], // legacy field the server used to (wrongly) initialize — must be ignored
+  };
+  const out = activeCycleBlock(cycle);
+  const parsed = JSON.parse(out);
+  assert.deepEqual(parsed.riesgos, cycle.risks);
 });
 
 test("assembleSystemContext includes the decisions block", async () => {
