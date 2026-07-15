@@ -453,6 +453,11 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .mono-value { color: var(--text); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.5; margin: 0; }
 .confirm-field { background: var(--code); border: 1px dashed var(--border); border-radius: 7px; color: var(--text2); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; line-height: 1.5; margin: 7px 0 0; padding: 7px 8px; }
 .confirm-field strong { color: var(--amber); font-weight: 600; }
+/* La IA sugirió el valor pero el gate (F1: evidencia) exige confirmación
+   humana explícita — debe verse distinto de un valor ya confirmado, si no
+   el PM cree que el campo ya quedó listo cuando el gate lo sigue pidiendo. */
+.mono-value.is-pending-confirm { background: var(--amber-soft); border: 1px dashed var(--amber); border-radius: 7px; padding: 7px 8px; }
+.pending-confirm-badge { color: var(--amber); display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; margin-bottom: 3px; text-transform: uppercase; }
 /* Usabilidad del panel: intro, placeholder accionable y guías por campo */
 .brief-help { background: var(--orange-soft); border-radius: 9px; color: var(--text2); font-size: 12px; line-height: 1.5; margin: 0 0 16px; padding: 10px 12px; }
 .brief-help strong { color: var(--text); font-weight: 600; }
