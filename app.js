@@ -1269,7 +1269,8 @@ function setDeliverable(next) {
   briefSwitch.classList.toggle("active", next === "brief");
   experimentSwitch.classList.toggle("active", next === "experiment");
   specSwitch?.classList.toggle("active", next === "spec");
-  deliverableTitle.textContent = next === "brief" ? "Intervention Brief" : next === "experiment" ? "Experiment Card" : "Spec conductual";
+  const DELIVERABLE_TITLE = { brief: "Intervention Brief", experiment: "Experiment Card", spec: "Spec conductual" };
+  deliverableTitle.textContent = DELIVERABLE_TITLE[next] ?? DELIVERABLE_TITLE.brief;
   progressText.textContent = next === "brief" ? `${filled} / 11 campos` : "0 / 9 campos";
   progressFill.style.width = next === "brief" ? `${Math.round((filled / 11) * 100)}%` : "0%";
 }

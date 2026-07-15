@@ -1,7 +1,7 @@
 // Tests del engine real (src/phaseEngine.js) sobre el schema vivo en español.
 // Cubre el rigor de gates de la doctrina: F1 exige causa B=MAP CONFIRMADA por
 // humano + ≥2 fuentes confirmadas (Ola 1 · decisión 3).
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { test } from "node:test";
 import { getMissingGateRequirements } from "../../src/phaseEngine.js";
 
@@ -27,12 +27,12 @@ test("F1: causa M/A/P sin confirmar NO cumple el gate (sigue faltando bmapCause)
 
 test("F1: causa confirmada por el humano (pm_confirmed) + 2 fuentes + sesgo → gate completo", () => {
   const cycle = baseF1Cycle({ causa: "A", causa_source: "pm_confirmed", sesgo: "choice_overload" });
-  assert.deepEqual(getMissingGateRequirements(cycle, "F1"), []);
+  assert.deepStrictEqual(getMissingGateRequirements(cycle, "F1"), []);
 });
 
 test("F1: causa y fuentes completas pero sin sesgo → falta 'sesgo'", () => {
   const cycle = baseF1Cycle({ causa: "A", causa_source: "pm_confirmed" });
-  assert.deepEqual(keys(cycle, "F1"), ["sesgo"]);
+  assert.deepStrictEqual(keys(cycle, "F1"), ["sesgo"]);
 });
 
 test("F1: causa confirmada vía brief.causa.confirmed también cuenta", () => {

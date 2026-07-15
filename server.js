@@ -609,7 +609,9 @@ async function handle(req, res) {
     // cuando no hay diagnóstico previo — feature nueva sin datos, baja derecho
     // a Fake Door/Wizard of Oz en vez de forzar F0→F1→F2 lineal.
     const coldStart = body.fase_actual === "F3" && body.cold_start === true;
-    const startPhase = coldStart ? "F3" : (DOCTRINE_PHASES.includes(body.fase_actual) ? body.fase_actual : "F0");
+    let startPhase = "F0";
+    if (coldStart) startPhase = "F3";
+    else if (DOCTRINE_PHASES.includes(body.fase_actual)) startPhase = body.fase_actual;
     // F0 validation (Fase 2): reject solution/feature framing — a cycle must
     // start from a behavior ("quién hace/no hace qué"), not a feature to build.
     // No aplica en cold-start: F3 arranca directo de un supuesto a validar, no

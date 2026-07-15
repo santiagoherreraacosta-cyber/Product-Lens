@@ -1,7 +1,7 @@
 // Tests for the "cerrar el E2E del lente" changes: F2/F3/F4 gates now require
 // the structured fields the doctrina §4.1 introduced (SDT checks, escalera de
 // validación, spec conductual) instead of accepting free-form LLM prose.
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { test } from "node:test";
 import { getMissingGateRequirements } from "../../src/phaseEngine.js";
 import { normalizeSesgo, normalizeTestElegido, testCumpleUmbral, normalizeFaseLabel, FASE_LABEL } from "../../src/doctrina.js";
@@ -39,7 +39,7 @@ test("F2 gate: los 3 checks SDT marcados + brief completo → gate cumplido", ()
       },
     },
   });
-  assert.deepEqual(keys(cycle, "F2"), []);
+  assert.deepStrictEqual(keys(cycle, "F2"), []);
 });
 
 test("F2 gate: un check sin marcar (solo nota) NO cuenta como cumplido", () => {
@@ -79,7 +79,7 @@ test("F3 gate: con test_elegido='wizard_of_oz' (>= umbral) y supuesto declarado,
   const cycle = baseF3Cycle({
     experiment: { supuesto_mas_riesgoso: "el seller confía en el checklist", test_elegido: "wizard_of_oz" },
   });
-  assert.deepEqual(keys(cycle, "F3"), []);
+  assert.deepStrictEqual(keys(cycle, "F3"), []);
 });
 
 test("F3 gate: un test por debajo de Wizard of Oz (ej. guerrilla_5u) NO valida causalidad", () => {
@@ -108,7 +108,7 @@ test("F3 gate: 'ab' con todos los campos A/B completos + causalidad (ab está al
       tamano_muestra: { value: "200" }, duracion: { value: "14 dias" }, criterio_stop: { value: "14 dias" },
     },
   });
-  assert.deepEqual(keys(cycle, "F3"), []);
+  assert.deepStrictEqual(keys(cycle, "F3"), []);
 });
 
 test("F3 gate: un umbral_causalidad explícito por debajo de wizard_of_oz permite un test más barato", () => {
@@ -145,25 +145,25 @@ test("F4 gate: spec_conductual completo (comportamiento + loop + criterio) cumpl
       criterio_exito_conductual: "el seller configuró el 2º envío, no solo abrió la app",
     },
   });
-  assert.deepEqual(keys(cycle, "F4"), []);
+  assert.deepStrictEqual(keys(cycle, "F4"), []);
 });
 
 test("doctrina: normalizeSesgo acepta solo el enum cerrado", () => {
-  assert.equal(normalizeSesgo("present_bias"), "present_bias");
-  assert.equal(normalizeSesgo("PRESENT_BIAS"), "present_bias");
-  assert.equal(normalizeSesgo("inventado"), null);
+  assert.strictEqual(normalizeSesgo("present_bias"), "present_bias");
+  assert.strictEqual(normalizeSesgo("PRESENT_BIAS"), "present_bias");
+  assert.strictEqual(normalizeSesgo("inventado"), null);
 });
 
 test("doctrina: normalizeTestElegido + testCumpleUmbral respetan el orden de la escalera", () => {
-  assert.equal(normalizeTestElegido("Wizard_Of_Oz"), "wizard_of_oz");
-  assert.equal(testCumpleUmbral("ab"), true);
-  assert.equal(testCumpleUmbral("pre_mortem"), false);
-  assert.equal(testCumpleUmbral("fake_door", "guerrilla_5u"), true);
-  assert.equal(testCumpleUmbral("expert_review", "guerrilla_5u"), false);
+  assert.strictEqual(normalizeTestElegido("Wizard_Of_Oz"), "wizard_of_oz");
+  assert.strictEqual(testCumpleUmbral("ab"), true);
+  assert.strictEqual(testCumpleUmbral("pre_mortem"), false);
+  assert.strictEqual(testCumpleUmbral("fake_door", "guerrilla_5u"), true);
+  assert.strictEqual(testCumpleUmbral("expert_review", "guerrilla_5u"), false);
 });
 
 test("doctrina: normalizeFaseLabel mapea los nombres viejos (Experimento/Despliegue) a los nuevos", () => {
-  assert.equal(normalizeFaseLabel("Experimento"), FASE_LABEL.F3);
-  assert.equal(normalizeFaseLabel("Despliegue"), FASE_LABEL.F4);
-  assert.equal(normalizeFaseLabel("Diagnóstico"), "Diagnóstico");
+  assert.strictEqual(normalizeFaseLabel("Experimento"), FASE_LABEL.F3);
+  assert.strictEqual(normalizeFaseLabel("Despliegue"), FASE_LABEL.F4);
+  assert.strictEqual(normalizeFaseLabel("Diagnóstico"), "Diagnóstico");
 });
