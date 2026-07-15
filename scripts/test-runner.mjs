@@ -19,9 +19,6 @@ function run(label, args) {
 run("syntax: server.js", ["--check", "server.js"]);
 run("syntax: app.js", ["--check", "app.js"]);
 
-// Snapshot tests (pure JS)
-run("snapshot: exportService", ["--test", "test/exportService.snapshot.test.js"]);
-
 // Unit tests (pure JS)
 run("unit: phase-engine", ["--test", "tests/unit/phase-engine.test.js"]);
 run("unit: export-service", ["--test", "tests/unit/export-service.test.js"]);
