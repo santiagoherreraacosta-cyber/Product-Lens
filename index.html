@@ -351,7 +351,7 @@
           <div class="brief-block phase-gated" data-unlock-phase="F1">
             <p class="section-label">Sesgo</p>
             <p class="field-hint">Cada sesgo tiene su antídoto — nómbralo para elegir la intervención correcta.</p>
-            <select id="briefSesgo" class="filter-select"></select>
+            <select id="briefSesgo" class="filter-select" aria-label="Sesgo"></select>
           </div>
           <div class="brief-block phase-gated" data-unlock-phase="F1">
             <p class="section-label">Proxy y 2ª señal</p>
@@ -376,15 +376,15 @@
             <div class="sdt-checks" id="sdtChecks">
               <div class="sdt-check">
                 <label><input type="checkbox" id="sdtAutonomiaCheck" /> Autonomía</label>
-                <input id="sdtAutonomiaNota" class="sdt-nota" placeholder="Nota…" />
+                <input id="sdtAutonomiaNota" class="sdt-nota" placeholder="Nota…" aria-label="Nota de Autonomía" />
               </div>
               <div class="sdt-check">
                 <label><input type="checkbox" id="sdtMasteryCheck" /> Mastery</label>
-                <input id="sdtMasteryNota" class="sdt-nota" placeholder="¿Construye un seller que ya no nos necesita, o dependencia?" />
+                <input id="sdtMasteryNota" class="sdt-nota" placeholder="¿Construye un seller que ya no nos necesita, o dependencia?" aria-label="Nota de Mastery" />
               </div>
               <div class="sdt-check">
                 <label><input type="checkbox" id="sdtRelatednessCheck" /> Relatedness</label>
-                <input id="sdtRelatednessNota" class="sdt-nota" placeholder="Nota…" />
+                <input id="sdtRelatednessNota" class="sdt-nota" placeholder="Nota…" aria-label="Nota de Relatedness" />
               </div>
               <div class="sdt-check">
                 <label><input type="checkbox" id="juevesTardeCheck" /> Jueves en la tarde <em>(¿funciona sin alta motivación?)</em></label>
@@ -538,12 +538,12 @@
             </div>
           </div>
           <div class="brief-block">
-            <p class="section-label">Copy por nivel cognitivo</p>
-            <textarea id="specCopyPorNivel" rows="2"></textarea>
+            <p class="section-label" id="specCopyPorNivelLabel">Copy por nivel cognitivo</p>
+            <textarea id="specCopyPorNivel" rows="2" aria-labelledby="specCopyPorNivelLabel"></textarea>
           </div>
           <div class="brief-block">
-            <p class="section-label">Anti-patrones <em>(uno por línea — qué NO debe hacer la implementación)</em></p>
-            <textarea id="specAntiPatrones" rows="3"></textarea>
+            <p class="section-label" id="specAntiPatronesLabel">Anti-patrones <em>(uno por línea — qué NO debe hacer la implementación)</em></p>
+            <textarea id="specAntiPatrones" rows="3" aria-labelledby="specAntiPatronesLabel"></textarea>
           </div>
           <div class="brief-block">
             <p class="section-label">Criterio de éxito conductual</p>

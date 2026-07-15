@@ -1947,21 +1947,33 @@ function flashBriefFields(changed) {
 }
 
 // Read cycle.brief{} and cycle top-level fields → populate all brief panel DOM elements
+// Orchestrates the brief/experiment/spec panel refresh — split into one
+// function per section (below) to keep each piece's cognitive complexity low.
 function loadBriefFromCycle(cycle) {
-  const b = cycle?.brief ?? {};
-  const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
+  renderBriefCoreFields(cycle);
+  renderBriefCauseSection(cycle);
+  renderF1SesgoProxy(cycle);
+  renderF2Guardrails(cycle);
+  renderExperimentCard(cycle);
+  renderSpecConductual(cycle);
+  setBriefProgress(computeBriefProgress(cycle));
+  applyPhaseGating(cycle);
+}
 
-  // Brief panel fields
+// Comportamiento/segmento/evidencia/intervención/hipótesis/métrica — los
+// campos base del brief (F0–F2), presentes desde el arranque del panel.
+function renderBriefCoreFields(cycle) {
+  const b = cycle?.brief ?? {};
   const briefBehavior = document.querySelector("#briefBehavior");
   const briefSubProfile = document.querySelector("#briefSubProfile");
   const briefCogLevel = document.querySelector("#briefCogLevel");
   const briefEvidence = document.querySelector("#briefEvidence");
   const briefIntervention = document.querySelector("#briefIntervention");
+  const briefSegment = document.querySelector("#briefSegment");
 
   setField(briefBehavior, b.behavior_statement?.value ?? null);
   if (briefSubProfile) briefSubProfile.innerHTML = subPerfilOptions(cycle?.sub_perfil ?? "");
   if (briefCogLevel) briefCogLevel.innerHTML = transitionOptions(cycle?.transicion ?? "");
-  const briefSegment = document.querySelector("#briefSegment");
   setField(briefSegment, cycle?.segmento_objetivo ?? null);
   setConfirmableField(briefEvidence, b.evidencia_primaria);
   setConfirmableField(secondSource, b.segunda_fuente);
@@ -1969,33 +1981,42 @@ function loadBriefFromCycle(cycle) {
   setField(hypothesisField, b.hipotesis?.value ?? null);
   setField(metricField, b.senal_cuantitativa?.value ?? null);
 
-  // B=MAP selector sync + estado de confirmación. El botón activo por sí solo
-  // no distingue "la IA lo sugirió" de "tú lo confirmaste" — pero el gate F1
-  // sí exige justo esa distinción (causa_source === "pm_confirmed"). Sin este
-  // texto, el botón resaltado podía hacer creer que la causa ya quedó
-  // confirmada cuando en realidad el gate seguía pidiendo el clic.
+  makeFieldEditable(briefBehavior, "brief.behavior_statement");
+  makeFieldEditable(briefSegment, "segmento_objetivo");
+  makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
+  makeFieldEditable(secondSource, "brief.segunda_fuente");
+  makeFieldEditable(briefIntervention, "brief.intervencion");
+  makeFieldEditable(hypothesisField, "brief.hipotesis");
+  makeFieldEditable(metricField, "brief.senal_cuantitativa");
+}
+
+// B=MAP selector sync + estado de confirmación. El botón activo por sí solo
+// no distingue "la IA lo sugirió" de "tú lo confirmaste" — pero el gate F1
+// sí exige justo esa distinción (causa_source === "pm_confirmed"). Sin este
+// texto, el botón resaltado podía hacer creer que la causa ya quedó
+// confirmada cuando en realidad el gate seguía pidiendo el clic.
+function renderBriefCauseSection(cycle) {
+  const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
   const activeCause = cycle?.causa;
   document.querySelectorAll(".bmap-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.cause === activeCause));
   const briefCauseEl = document.getElementById("briefCause");
   if (briefCauseEl) {
-    const causaConfirmed = cycle?.causa_source === "pm_confirmed" || b.causa?.confirmed === true;
+    const causaConfirmed = cycle?.causa_source === "pm_confirmed" || cycle?.brief?.causa?.confirmed === true;
+    briefCauseEl.classList.toggle("confirm-field", !activeCause || !causaConfirmed);
+    briefCauseEl.classList.toggle("mono-value", !!activeCause && causaConfirmed);
     if (!activeCause) {
       briefCauseEl.innerHTML = '<span class="field-cta">Elige una causa arriba</span>';
-      briefCauseEl.classList.add("confirm-field");
-      briefCauseEl.classList.remove("mono-value");
     } else if (causaConfirmed) {
       briefCauseEl.textContent = `Confirmada: ${causeMap[activeCause] ?? activeCause}`;
-      briefCauseEl.classList.remove("confirm-field");
-      briefCauseEl.classList.add("mono-value");
     } else {
       briefCauseEl.innerHTML = `<strong>Sugerida por la IA:</strong> ${causeMap[activeCause] ?? activeCause} — clic arriba para confirmarla`;
-      briefCauseEl.classList.add("confirm-field");
-      briefCauseEl.classList.remove("mono-value");
     }
   }
   renderSubCausa(cycle);
+}
 
-  // F1 — sesgo + proxy/2ª señal (doctrina §4.1)
+// F1 — sesgo + proxy/2ª señal (doctrina §4.1)
+function renderF1SesgoProxy(cycle) {
   const briefSesgo = document.querySelector("#briefSesgo");
   if (briefSesgo) briefSesgo.innerHTML = sesgoOptions(cycle?.sesgo ?? "");
   const proxyData = cycle?.proxy_y_segunda_senal ?? {};
@@ -2006,17 +2027,31 @@ function loadBriefFromCycle(cycle) {
   makeFieldEditable(briefProxy, "proxy_y_segunda_senal.proxy");
   makeFieldEditable(briefSegundaSenal, "proxy_y_segunda_senal.segunda_senal");
   bindStructuredField(briefSesgo, (el) => ({ sesgo: el.value || null }));
+}
 
-  // F2 — guardrails SDT + jueves en la tarde + anti-roadmap + fricción + hook
+// Binds a group of DOM elements (checkbox/input/textarea) to nested cycle
+// patch paths, populating the current value first. Shared by the SDT/hook/
+// fricción loops below so each caller stays a flat, low-branching block.
+function bindFieldGroup(els, readValue, applyValue, patchFor, evt) {
+  for (const [key, el] of Object.entries(els)) {
+    if (el) applyValue(el, key);
+    bindStructuredField(el, (e) => patchFor(key, readValue(e)), evt);
+  }
+}
+
+// F2 — guardrails SDT + jueves en la tarde + anti-roadmap + fricción + hook
+function renderF2Guardrails(cycle) {
   const sdt = cycle?.brief?.sdt ?? {};
   for (const dim of ["autonomia", "mastery", "relatedness"]) {
-    const checkEl = document.getElementById(`sdt${dim[0].toUpperCase()}${dim.slice(1)}Check`);
-    const notaEl = document.getElementById(`sdt${dim[0].toUpperCase()}${dim.slice(1)}Nota`);
+    const label = dim[0].toUpperCase() + dim.slice(1);
+    const checkEl = document.getElementById(`sdt${label}Check`);
+    const notaEl = document.getElementById(`sdt${label}Nota`);
     if (checkEl) checkEl.checked = sdt[dim]?.check === true;
     if (notaEl) notaEl.value = sdt[dim]?.nota ?? "";
     bindStructuredField(checkEl, (el) => ({ brief: { sdt: { [dim]: { check: el.checked } } } }));
     bindStructuredField(notaEl, (el) => ({ brief: { sdt: { [dim]: { nota: el.value } } } }), "blur");
   }
+
   const juevesEl = document.getElementById("juevesTardeCheck");
   if (juevesEl) juevesEl.checked = cycle?.brief?.jueves_en_la_tarde?.check === true;
   bindStructuredField(juevesEl, (el) => ({ brief: { jueves_en_la_tarde: { check: el.checked } } }));
@@ -2030,10 +2065,11 @@ function loadBriefFromCycle(cycle) {
     preservar: document.getElementById("friccionPreservar"),
     es_inversion: document.getElementById("friccionInversion"),
   };
-  for (const [key, el] of Object.entries(friccionEls)) {
-    if (el) el.value = (friccion[key] ?? []).join("\n");
-    bindStructuredField(el, (e) => ({ brief: { friccion: { [key]: linesToArray(e.value) } } }), "blur");
-  }
+  bindFieldGroup(friccionEls,
+    (e) => linesToArray(e.value),
+    (el, key) => { el.value = (friccion[key] ?? []).join("\n"); },
+    (key, val) => ({ brief: { friccion: { [key]: val } } }),
+    "blur");
 
   const hook = cycle?.brief?.hook ?? {};
   const hookEls = {
@@ -2042,31 +2078,36 @@ function loadBriefFromCycle(cycle) {
     variable_reward: document.getElementById("hookReward"),
     investment_phase: document.getElementById("hookInvestment"),
   };
-  for (const [key, el] of Object.entries(hookEls)) {
-    if (el) el.value = hook[key] ?? "";
-    bindStructuredField(el, (e) => ({ brief: { hook: { [key]: e.value } } }), "blur");
-  }
+  bindFieldGroup(hookEls,
+    (e) => e.value,
+    (el, key) => { el.value = hook[key] ?? ""; },
+    (key, val) => ({ brief: { hook: { [key]: val } } }),
+    "blur");
+}
 
-  // Experiment card — all fields
+// Experiment Card — hipótesis/variable/tracking + escalera de validación F3
+// (supuesto más riesgoso, test elegido, confianza, decisión) + A/B opcional.
+function renderExperimentCard(cycle) {
   const exp = cycle?.experiment ?? {};
   const expStr = (v) => v?.value ?? (typeof v === "string" ? v : null);
-  const expHypothesis = document.querySelector("#experimentHypothesis");
-  const expVariable = document.querySelector("#experimentVariable");
-  const expMetric = document.querySelector("#experimentMetric");
-  const expStop = document.querySelector("#experimentStop");
-  const expSample = document.querySelector("#experimentSample");
-  const expDuration = document.querySelector("#experimentDuration");
+  const fields = {
+    experimentHypothesis: ["hipotesis", "experiment.hipotesis"],
+    experimentVariable: ["variable", "experiment.variable"],
+    experimentMetric: ["metrica_primaria", "experiment.metrica_primaria"],
+    experimentStop: ["criterio_stop", "experiment.criterio_stop"],
+    experimentSample: ["tamano_muestra", "experiment.tamano_muestra"],
+    experimentDuration: ["duracion", "experiment.duracion"],
+  };
+  for (const [elId, [expKey, path]] of Object.entries(fields)) {
+    const el = document.querySelector(`#${elId}`);
+    setField(el, expStr(exp[expKey]));
+    makeFieldEditable(el, path);
+  }
   const expTracking = document.querySelector("#experimentTracking");
-
-  setField(expHypothesis, expStr(exp.hipotesis));
-  setField(expVariable, expStr(exp.variable));
-  setField(expMetric, expStr(exp.metrica_primaria));
-  setField(expStop, expStr(exp.criterio_stop));
-  setField(expSample, expStr(exp.tamano_muestra));
-  setField(expDuration, expStr(exp.duracion));
   const trackVal = Array.isArray(exp.tracking_eventos) && exp.tracking_eventos.length
     ? exp.tracking_eventos.join(", ") : expStr(exp.tracking_eventos);
   setField(expTracking, trackVal);
+  makeFieldEditable(expTracking, "experiment.tracking_eventos");
 
   // 2D - honestidad: estado del toggle outcome/actividad + advertencia.
   const mType = exp.metrica_tipo ?? null;
@@ -2074,22 +2115,23 @@ function loadBriefFromCycle(cycle) {
   const mWarn = document.getElementById("metricTypeWarn");
   if (mWarn) mWarn.hidden = mType !== "actividad";
 
-  // F3 — escalera de validación (§8): supuesto más riesgoso, test elegido, etc.
-  const expSupuesto = document.querySelector("#experimentSupuesto");
-  const expPorQueEste = document.querySelector("#experimentPorQueEste");
-  const expResultadoConfirma = document.querySelector("#experimentResultadoConfirma");
-  const expResultadoRefuta = document.querySelector("#experimentResultadoRefuta");
-  const expCostoEquivocarse = document.querySelector("#experimentCostoEquivocarse");
-  setField(expSupuesto, exp.supuesto_mas_riesgoso || null);
-  setField(expPorQueEste, exp.por_que_este || null);
-  setField(expResultadoConfirma, exp.resultado_confirma || null);
-  setField(expResultadoRefuta, exp.resultado_refuta || null);
-  setField(expCostoEquivocarse, exp.costo_de_equivocarse || null);
-  makeFieldEditable(expSupuesto, "experiment.supuesto_mas_riesgoso");
-  makeFieldEditable(expPorQueEste, "experiment.por_que_este");
-  makeFieldEditable(expResultadoConfirma, "experiment.resultado_confirma");
-  makeFieldEditable(expResultadoRefuta, "experiment.resultado_refuta");
-  makeFieldEditable(expCostoEquivocarse, "experiment.costo_de_equivocarse");
+  renderF3ValidationLadder(exp);
+}
+
+// F3 — escalera de validación (§8): supuesto más riesgoso, test elegido, etc.
+function renderF3ValidationLadder(exp) {
+  const textFields = {
+    experimentSupuesto: ["supuesto_mas_riesgoso", "experiment.supuesto_mas_riesgoso"],
+    experimentPorQueEste: ["por_que_este", "experiment.por_que_este"],
+    experimentResultadoConfirma: ["resultado_confirma", "experiment.resultado_confirma"],
+    experimentResultadoRefuta: ["resultado_refuta", "experiment.resultado_refuta"],
+    experimentCostoEquivocarse: ["costo_de_equivocarse", "experiment.costo_de_equivocarse"],
+  };
+  for (const [elId, [expKey, path]] of Object.entries(textFields)) {
+    const el = document.querySelector(`#${elId}`);
+    setField(el, exp[expKey] || null);
+    makeFieldEditable(el, path);
+  }
 
   const expTipoSupuesto = document.getElementById("experimentTipoSupuesto");
   const expTestElegido = document.getElementById("experimentTestElegido");
@@ -2103,8 +2145,10 @@ function loadBriefFromCycle(cycle) {
   bindStructuredField(expTestElegido, (el) => ({ experiment: { test_elegido: el.value || null } }));
   bindStructuredField(expConfianza, (el) => ({ experiment: { confianza: el.value ? Number(el.value) : null } }));
   bindStructuredField(expDecisionF3, (el) => ({ experiment: { decision: el.value || null } }));
+}
 
-  // F4 — spec conductual (el handoff a tech, doctrina §4.1)
+// F4 — spec conductual (el handoff a tech, doctrina §4.1)
+function renderSpecConductual(cycle) {
   const spec = cycle?.spec_conductual ?? {};
   const specComportamiento = document.querySelector("#specComportamiento");
   const specCriterioExito = document.querySelector("#specCriterioExito");
@@ -2118,57 +2162,44 @@ function loadBriefFromCycle(cycle) {
     trigger: document.getElementById("specTrigger"), action: document.getElementById("specAction"),
     reward: document.getElementById("specReward"), investment: document.getElementById("specInvestment"),
   };
-  for (const [key, el] of Object.entries(loopEls)) {
-    if (el) el.value = loop[key] ?? "";
-    bindStructuredField(el, (e) => ({ spec_conductual: { loop_completo: { [key]: e.value } } }), "blur");
-  }
+  bindFieldGroup(loopEls,
+    (e) => e.value,
+    (el, key) => { el.value = loop[key] ?? ""; },
+    (key, val) => ({ spec_conductual: { loop_completo: { [key]: val } } }),
+    "blur");
+
   const specFriccion = spec.friccion ?? {};
   const specFriccionEls = {
     elimina: document.getElementById("specFriccionElimina"),
     preserva: document.getElementById("specFriccionPreserva"),
     invierte: document.getElementById("specFriccionInvierte"),
   };
-  for (const [key, el] of Object.entries(specFriccionEls)) {
-    if (el) el.value = (specFriccion[key] ?? []).join("\n");
-    bindStructuredField(el, (e) => ({ spec_conductual: { friccion: { [key]: linesToArray(e.value) } } }), "blur");
-  }
+  bindFieldGroup(specFriccionEls,
+    (e) => linesToArray(e.value),
+    (el, key) => { el.value = (specFriccion[key] ?? []).join("\n"); },
+    (key, val) => ({ spec_conductual: { friccion: { [key]: val } } }),
+    "blur");
+
   const specCopy = document.getElementById("specCopyPorNivel");
   if (specCopy) specCopy.value = spec.copy_por_nivel_cognitivo ?? "";
   bindStructuredField(specCopy, (e) => ({ spec_conductual: { copy_por_nivel_cognitivo: e.value } }), "blur");
   const specAnti = document.getElementById("specAntiPatrones");
   if (specAnti) specAnti.value = (spec.anti_patrones ?? []).join("\n");
   bindStructuredField(specAnti, (e) => ({ spec_conductual: { anti_patrones: linesToArray(e.value) } }), "blur");
+}
 
-  // Make brief fields inline-editable (sub_perfil/nivel cognitivo son <select>, no free-text)
-  makeFieldEditable(briefBehavior, "brief.behavior_statement");
-  makeFieldEditable(briefSegment, "segmento_objetivo");
-  makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
-  makeFieldEditable(secondSource, "brief.segunda_fuente");
-  makeFieldEditable(briefIntervention, "brief.intervencion");
-  makeFieldEditable(hypothesisField, "brief.hipotesis");
-  makeFieldEditable(metricField, "brief.senal_cuantitativa");
-
-  // Make experiment fields inline-editable
-  makeFieldEditable(expHypothesis, "experiment.hipotesis");
-  makeFieldEditable(expVariable, "experiment.variable");
-  makeFieldEditable(expMetric, "experiment.metrica_primaria");
-  makeFieldEditable(expStop, "experiment.criterio_stop");
-  makeFieldEditable(expSample, "experiment.tamano_muestra");
-  makeFieldEditable(expDuration, "experiment.duracion");
-  makeFieldEditable(expTracking, "experiment.tracking_eventos");
-
-  // Progress: count confirmed brief sub-objects + filled top-level scalars.
-  // causa cuenta UNA vez vía cycle.causa (no también vía brief.causa.confirmed,
-  // que se escribe en paralelo) para no duplicar el mismo dato.
+// Progress: cuenta sub-objetos confirmados del brief + escalares top-level
+// llenos. causa cuenta UNA vez vía cycle.causa (no también vía
+// brief.causa.confirmed, que se escribe en paralelo) para no duplicar el dato.
+function computeBriefProgress(cycle) {
+  const b = cycle?.brief ?? {};
   const confirmedFields = [b.behavior_statement, b.senal_cuantitativa, b.evidencia_primaria, b.segunda_fuente, b.intervencion, b.hipotesis];
   let cnt = confirmedFields.filter((f) => f?.confirmed).length;
   if (cycle?.segmento_objetivo) cnt++;
   if (cycle?.sub_perfil) cnt++;
   if (cycle?.transicion) cnt++;
   if (cycle?.causa) cnt++;
-  setBriefProgress(cnt);
-
-  applyPhaseGating(cycle);
+  return cnt;
 }
 
 // Hilo conductor: los campos de fases futuras quedan visibles pero bloqueados
