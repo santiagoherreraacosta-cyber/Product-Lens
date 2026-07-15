@@ -1,7 +1,7 @@
 // Unit tests for the extracted core cycle logic (B7).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deepMerge, looksLikeFeature, applyBriefUpdates } from "../../src/cycleLogic.js";
+import { deepMerge, looksLikeFeature, applyBriefUpdates, resolveRisk } from "../../src/cycleLogic.js";
 
 test("deepMerge merges nested objects without wiping sibling keys (brief-wipe fix)", () => {
   const cycle = { brief: { a: { value: "1", confirmed: true }, b: { value: "2" } } };
@@ -63,4 +63,31 @@ test("applyBriefUpdates tolerates missing updates", () => {
   const { cycle, changed } = applyBriefUpdates(base, null);
   assert.equal(cycle, base);
   assert.deepEqual(changed, []);
+});
+
+test("resolveRisk marks the matching risk resolved without touching others", () => {
+  const base = {
+    risks: [
+      { id: "r1", phase: "F1", text: "1 sola fuente", resolvedAt: null },
+      { id: "r2", phase: "F3", text: "peeking", resolvedAt: null },
+    ],
+  };
+  const { cycle, found } = resolveRisk(base, "r1", { id: "u1", name: "pm@dropi.co" }, "2026-01-01T00:00:00.000Z");
+  assert.equal(found, true);
+  assert.equal(cycle.risks[0].resolvedAt, "2026-01-01T00:00:00.000Z");
+  assert.deepEqual(cycle.risks[0].resolvedBy, { id: "u1", name: "pm@dropi.co" });
+  // r2 untouched
+  assert.equal(cycle.risks[1].resolvedAt, null);
+});
+
+test("resolveRisk returns found:false for an unknown riskId, cycle unchanged", () => {
+  const base = { risks: [{ id: "r1", phase: "F1", text: "x" }] };
+  const { cycle, found } = resolveRisk(base, "does-not-exist");
+  assert.equal(found, false);
+  assert.equal(cycle, base);
+});
+
+test("resolveRisk on a cycle with no risks returns found:false", () => {
+  const { found } = resolveRisk({}, "r1");
+  assert.equal(found, false);
 });

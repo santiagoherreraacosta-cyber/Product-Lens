@@ -78,3 +78,16 @@ export function applyBriefUpdates(cycle, updates) {
   }
   return { cycle: { ...cycle, ...patch }, changed };
 }
+
+// Marca un riesgo puntual como resuelto (no lo borra: cycle.risks[] conserva
+// todo el rastro). Devuelve { cycle, found } — found=false si el riskId no
+// existe en el ciclo (el caller decide si eso es un 404).
+export function resolveRisk(cycle, riskId, actor = {}, now = new Date().toISOString()) {
+  const risks = cycle.risks ?? [];
+  const found = risks.some((r) => r.id === riskId);
+  if (!found) return { cycle, found: false };
+  const updatedRisks = risks.map((r) => r.id === riskId
+    ? { ...r, resolvedAt: now, resolvedBy: actor }
+    : r);
+  return { cycle: { ...cycle, risks: updatedRisks }, found: true };
+}

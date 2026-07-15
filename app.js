@@ -247,7 +247,11 @@ async function loadCycles() {
     renderCyclesList();
     renderActiveCycle();
   } catch {
-    cyclesList.innerHTML = `<p class="error-state">No se pudieron cargar los ciclos. <button onclick="loadCycles()">Reintentar</button></p>`;
+    // No usar onclick="loadCycles()" inline: app.js es un módulo, sus
+    // funciones no son visibles en scope global — el botón lanzaba
+    // "loadCycles is not defined" en vez de reintentar.
+    cyclesList.innerHTML = `<p class="error-state">No se pudieron cargar los ciclos. <button type="button" data-retry="cycles">Reintentar</button></p>`;
+    cyclesList.querySelector("[data-retry]")?.addEventListener("click", () => loadCycles());
   }
 }
 
@@ -603,12 +607,7 @@ function renderActiveCycle() {
   // Show CTA when cycle is closed and message stream has no closed-note yet
   const readonlyBanner = document.getElementById("readonlyBanner");
   if (readonlyBanner) readonlyBanner.hidden = !isClosed;
-  if (isClosed && !messageStream.querySelector(".closed-cycle-note")) {
-    const note = document.createElement("div");
-    note.className = "closed-cycle-note ai-note";
-    note.innerHTML = `Ciclo cerrado. Revisa el patrón en la <button class="inline-link" type="button" onclick="setView('library')">Biblioteca de Patrones</button> o <button class="inline-link" type="button" onclick="document.getElementById('newCycleButton').click()">crea un nuevo ciclo</button>.`;
-    messageStream.appendChild(note);
-  }
+  renderClosedCycleNote(cycle);
 }
 
 // PR-4 · Reuse confirmation. Reusing a pattern seeds a brand-new F0 cycle with
@@ -728,7 +727,9 @@ async function loadPatterns() {
     if (currentView === "library") renderPatternsList();
   } catch {
     if (currentView === "library") {
-      patternsList.innerHTML = `<p class="error-state">No se pudieron cargar los patrones. <button onclick="loadPatterns()">Reintentar</button></p>`;
+      // No usar onclick="loadPatterns()" inline: ver nota en loadCycles().
+      patternsList.innerHTML = `<p class="error-state">No se pudieron cargar los patrones. <button type="button" data-retry="patterns">Reintentar</button></p>`;
+      patternsList.querySelector("[data-retry]")?.addEventListener("click", () => loadPatterns());
     }
   }
 }
@@ -922,7 +923,9 @@ async function loadAnalytics() {
     if (!res.ok) throw new Error(`Error ${res.status}`);
     renderAnalytics(await res.json());
   } catch {
-    analyticsGrid.innerHTML = `<p class="error-state">No se pudieron cargar las métricas. <button onclick="loadAnalytics()">Reintentar</button></p>`;
+    // No usar onclick="loadAnalytics()" inline: ver nota en loadCycles().
+    analyticsGrid.innerHTML = `<p class="error-state">No se pudieron cargar las métricas. <button type="button" data-retry="analytics">Reintentar</button></p>`;
+    analyticsGrid.querySelector("[data-retry]")?.addEventListener("click", () => loadAnalytics());
   }
 }
 
@@ -1427,6 +1430,7 @@ function renderMessages(msgs) {
     } else {
       addAiNote(`Ciclo: "${escapeHtml(cycle.title)}" · ${escapeHtml(cycle.fase_actual ?? cycle.activePhase ?? "F0")}. ¿Cómo te puedo ayudar?`);
     }
+    renderClosedCycleNote(getCurrentCycle());
     return;
   }
   msgs.forEach((m) => {
@@ -1438,6 +1442,25 @@ function renderMessages(msgs) {
     }
   });
   messageStream.scrollTop = messageStream.scrollHeight;
+  // loadMessages() no espera a renderActiveCycle() ni viceversa — cualquiera
+  // de los dos puede ejecutar último. renderMessages() SIEMPRE reemplaza todo
+  // #messageStream.innerHTML, así que el banner de cierre debe re-agregarse
+  // aquí también o la carrera lo borra silenciosamente la mitad de las veces.
+  renderClosedCycleNote(getCurrentCycle());
+}
+
+// Banner de ciclo cerrado. No usa onclick="..." inline: app.js es un módulo
+// (type="module"), sus funciones no son visibles para atributos inline, que
+// corren en scope global — un onclick así lanza "X is not defined" en clic.
+function renderClosedCycleNote(cycle) {
+  if (!cycle || cycle.estado === "activo") return;
+  if (messageStream.querySelector(".closed-cycle-note")) return;
+  const note = document.createElement("div");
+  note.className = "closed-cycle-note ai-note";
+  note.innerHTML = `Ciclo cerrado. Revisa el patrón en la <button class="inline-link" type="button" data-cta="library">Biblioteca de Patrones</button> o <button class="inline-link" type="button" data-cta="new-cycle">crea un nuevo ciclo</button>.`;
+  messageStream.appendChild(note);
+  note.querySelector('[data-cta="library"]')?.addEventListener("click", () => setView("library"));
+  note.querySelector('[data-cta="new-cycle"]')?.addEventListener("click", () => document.getElementById("newCycleButton")?.click());
 }
 
 // --- Chat ---
@@ -1685,10 +1708,32 @@ function renderBriefState() {
       // no ser la misma persona.
       const who = r.acceptedBy?.name || r.acceptedBy?.id || "usuario";
       const when = r.acceptedAt ? new Date(r.acceptedAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
-      return `<div class="risk-tag"><span>${escapeHtml(r.phase)}</span> ${escapeHtml(r.text)} Riesgo aceptado por ${escapeHtml(who)} · ${escapeHtml(when)}.</div>`;
+      return `<div class="risk-tag"><span>${escapeHtml(r.phase)}</span> <span class="risk-tag-text">${escapeHtml(r.text)} Riesgo aceptado por ${escapeHtml(who)} · ${escapeHtml(when)}.</span><button type="button" class="pending-chip risk-resolve-btn" data-resolve-risk="${escapeHtml(r.id)}">Marcar resuelto</button></div>`;
     }).join("");
+    riskTag.querySelectorAll("[data-resolve-risk]").forEach((btn) => {
+      btn.addEventListener("click", () => resolveRisk(btn.dataset.resolveRisk));
+    });
   }
   setDeliverable(deliverable);
+}
+
+// Marca un riesgo como resuelto (no lo borra: pasa de "Riesgos asumidos" a
+// "Riesgos resueltos" en el entregable exportado).
+async function resolveRisk(riskId) {
+  if (!currentCycleId || !riskId) return;
+  try {
+    const res = await apiFetch(`/api/cycles/${currentCycleId}/risks/${encodeURIComponent(riskId)}/resolve`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!res.ok) { showToast("No se pudo marcar el riesgo como resuelto.", true); return; }
+    const updated = await res.json();
+    cycles = cycles.map((c) => (c.id === updated.id ? updated : c));
+    renderBriefState();
+    showToast("Riesgo marcado como resuelto.");
+  } catch {
+    showToast("Error de conexión al resolver el riesgo.", true);
+  }
 }
 
 // 10 campos confirmables del Brief (sub_causa queda fuera: es opcional/secundaria
@@ -2055,6 +2100,23 @@ function downloadBrief() {
   openExportPreview(markdown, title);
 }
 
+// Riesgos reales del ciclo en dos listas — asumidos (abiertos) y resueltos —
+// compartido por el brief y el resumen ejecutivo exportados.
+function riskMarkdownSections(cycle, fallbackWho, fallbackWhen) {
+  const risks = cycle?.risks ?? [];
+  const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : fallbackWhen);
+  const assumed = risks.filter((r) => !r.resolvedAt);
+  const resolved = risks.filter((r) => r.resolvedAt);
+  return {
+    assumedLines: assumed.length
+      ? assumed.map((r) => `- ${r.phase}: ${r.text} Riesgo aceptado por ${r.acceptedBy?.name || r.acceptedBy?.id || fallbackWho} · ${fmtDate(r.acceptedAt)}.`)
+      : [`- Sin riesgos aceptados.`],
+    resolvedLines: resolved.length
+      ? resolved.map((r) => `- ${r.phase}: ${r.text} Resuelto por ${r.resolvedBy?.name || r.resolvedBy?.id || fallbackWho} · ${fmtDate(r.resolvedAt)}.`)
+      : [`- Sin riesgos resueltos.`],
+  };
+}
+
 // Builds the live Intervention Brief Markdown from the current cycle. Returns
 // { markdown, title } so it can feed both the preview and the downloads.
 function buildBriefMarkdown() {
@@ -2114,27 +2176,70 @@ function buildBriefMarkdown() {
       lines.push(`**Tracking:** ${Array.isArray(exp.tracking_eventos) ? exp.tracking_eventos.join(", ") : exp.tracking_eventos}`);
   }
 
-  // Riesgos reales del ciclo (no un texto fijo): cada uno lleva fase, motivo,
-  // autor y fecha, tal como los deja acceptRisk() en el server.
-  const openRisks = (cycle?.risks ?? []).filter((r) => !r.resolvedAt);
-  const riskLines = openRisks.length
-    ? openRisks.map((r) => {
-        const stamp = r.acceptedAt ? new Date(r.acceptedAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : when;
-        const author = r.acceptedBy?.name || r.acceptedBy?.id || who;
-        return `- ${r.phase}: ${r.text} Riesgo aceptado por ${author} · ${stamp}.`;
-      })
-    : [`- Sin riesgos aceptados.`];
-
+  // Riesgos reales del ciclo (no un texto fijo): asumidos + resueltos,
+  // compartido con el resumen ejecutivo.
+  const { assumedLines, resolvedLines } = riskMarkdownSections(cycle, who, when);
   lines.push(
     ``,
     `## Riesgos asumidos`,
-    ...riskLines,
+    ...assumedLines,
+    ``,
+    `## Riesgos resueltos`,
+    ...resolvedLines,
     ``,
     `---`,
     `*Exportado por ${who} · ${when}*`,
   );
 
   return { markdown: lines.join("\n"), title };
+}
+
+// Resumen ejecutivo: solo existe una vez el ciclo cierra en F5 — el server lo
+// genera con el LLM al cerrar (cierre.resumen_ejecutivo), no se re-genera
+// desde el cliente. Si el ciclo cerró sin ANTHROPIC_API_KEY configurada,
+// queda [CONFIRMAR] en vez de inventar un texto.
+function buildExecutiveSummaryMarkdown() {
+  const cycle = getCurrentCycle();
+  const title = cycle?.title ?? "[CONFIRMAR]";
+  const who = currentUser?.email ?? "usuario";
+  const when = new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
+  const cierre = cycle?.cierre ?? {};
+  const summary = cierre.resumen_ejecutivo?.trim() || "[CONFIRMAR] Este ciclo no tiene resumen ejecutivo generado.";
+  const decisionLabel = { escalar: "Escalar", matar: "Matar", iterar: "Iterar" }[cierre.decision] ?? (cierre.decision || "[CONFIRMAR]");
+  const { assumedLines, resolvedLines } = riskMarkdownSections(cycle, who, when);
+  const lines = [
+    `# Resumen ejecutivo`,
+    ``,
+    `## Ciclo`,
+    title,
+    ``,
+    summary,
+    ``,
+    `## Decisión`,
+    `${decisionLabel}${cierre.delta ? ` (${cierre.delta})` : ""}`,
+    ``,
+    `## Aprendizaje`,
+    cierre.learning || "[CONFIRMAR]",
+    ``,
+    `## Riesgos`,
+    `### Asumidos`,
+    ...assumedLines,
+    ``,
+    `### Resueltos`,
+    ...resolvedLines,
+    ``,
+    `---`,
+    `*Exportado por ${who} · ${when}*`,
+  ];
+  return { markdown: lines.join("\n"), title };
+}
+
+function exportExecutiveSummaryFlow() {
+  const cycle = getCurrentCycle();
+  if (!cycle) { showToast("Selecciona un ciclo primero para exportar el resumen ejecutivo."); return; }
+  if (cycle.estado !== "cerrado") { showToast("El resumen ejecutivo se genera al cerrar el ciclo en F5."); return; }
+  const { markdown, title } = buildExecutiveSummaryMarkdown();
+  openExportPreview(markdown, title);
 }
 
 const briefSlug = (title) => (title || "brief").toLowerCase().replace(/\s+/g, "-").slice(0, 40);
@@ -2429,6 +2534,9 @@ function runPaletteCommand(command) {
   if (command === "experiment") {
     if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para ver la Experiment Card."); }
     else setDeliverable("experiment");
+  }
+  if (command === "resumen") {
+    exportExecutiveSummaryFlow();
   }
   if (command === "advance") {
     if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para avanzar de fase."); }

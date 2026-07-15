@@ -8,7 +8,7 @@ import { getContextDocuments, updateContextDocument } from "./src/contextStore.j
 import { assembleSystemContext } from "./src/memory.js";
 import { initStore, load as storeLoad, save as storeSave } from "./src/persistence.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
-import { deepMerge, looksLikeFeature, applyBriefUpdates } from "./src/cycleLogic.js";
+import { deepMerge, looksLikeFeature, applyBriefUpdates, resolveRisk } from "./src/cycleLogic.js";
 import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, TRANSITIONS, SUB_CAUSA } from "./src/doctrina.js";
 
 // Default phase seed (stepper UI) with canonical Spanish labels from the doctrine.
@@ -205,6 +205,55 @@ async function extractBriefUpdates(apiKey, model, cycle, userMessage, reply) {
     return toolUse?.input ?? null;
   } catch (err) {
     console.warn("Brief extraction failed:", err.message);
+    return null;
+  }
+}
+
+// Resumen ejecutivo (F5): se genera UNA vez al cerrar el ciclo, con el
+// contexto completo (comportamiento, causa, hipótesis, experimento, decisión,
+// aprendizaje) — no un mock. Sin ANTHROPIC_API_KEY, se omite (null) y la UI
+// lo trata como [CONFIRMAR], nunca inventa el texto localmente.
+async function generateExecutiveSummary(apiKey, model, cycle, closeMeta) {
+  try {
+    const b = cycle.brief ?? {};
+    const context = JSON.stringify({
+      titulo: cycle.title,
+      comportamiento: b.behavior_statement?.value ?? null,
+      segmento: cycle.segmento_objetivo ?? null,
+      sub_perfil: cycle.sub_perfil ?? null,
+      causa: cycle.causa ?? null,
+      evidencia: [b.evidencia_primaria?.value, b.segunda_fuente?.value].filter(Boolean),
+      intervencion: b.intervencion?.value ?? null,
+      hipotesis: b.hipotesis?.value ?? null,
+      experimento: cycle.experiment ?? null,
+      decision: closeMeta.decision,
+      aprendizaje: closeMeta.learning,
+      delta_metrica: closeMeta.delta,
+    });
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: anthropicHeaders(apiKey),
+      body: JSON.stringify({
+        model,
+        max_tokens: 400,
+        messages: [{
+          role: "user",
+          content:
+            "Escribe un resumen ejecutivo de 4 a 6 frases para este ciclo de producto cerrado " +
+            "(metodología B=MAP), en español, dirigido a un stakeholder que no participó en el " +
+            "ciclo. Prosa corrida, sin bullets ni encabezados. Cubre: qué comportamiento se " +
+            "atacó y en quién, por qué no ocurría (causa), qué se probó, qué resultó y qué se " +
+            "decidió. No inventes datos que no estén en el contexto.\n\n" +
+            `Datos del ciclo:\n${context}`,
+        }],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = (data.content ?? []).find((b2) => b2.type === "text")?.text?.trim();
+    return text || null;
+  } catch (err) {
+    console.warn("Executive summary generation failed:", err.message);
     return null;
   }
 }
@@ -735,6 +784,14 @@ async function handle(req, res) {
         ...p,
         state: p.key === "F5" ? "done" : p.state === "active" ? "done" : p.state,
       }));
+      // Resumen ejecutivo: se genera una sola vez, aquí, con el ciclo ya
+      // cerrado — nunca se re-genera después. Sin API key configurada queda
+      // null y el entregable lo trata como [CONFIRMAR], no un texto inventado.
+      const closeMeta = { decision: decision ?? "[CONFIRMAR]", learning: body.learning.trim(), delta: body.delta ?? null };
+      const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+      const resumenEjecutivo = ANTHROPIC_API_KEY
+        ? await generateExecutiveSummary(ANTHROPIC_API_KEY, process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6", baseCycle, closeMeta)
+        : null;
       const closedCycle = {
         ...baseCycle,
         estado: "cerrado",
@@ -748,6 +805,7 @@ async function handle(req, res) {
           decision: decision ?? "[CONFIRMAR]",
           learning: body.learning.trim(),
           pattern_id: patternId,
+          resumen_ejecutivo: resumenEjecutivo,
         },
         updatedAt: now,
         last_activity_at: now,
@@ -763,6 +821,24 @@ async function handle(req, res) {
       logAudit(currentUser?.email, "cycle_closed", cycleId, { patternId });
       logAudit(currentUser?.email, "pattern_created", patternId, { type: newPattern.tipo, cause: newPattern.causa });
       return json(res, { cycle: closedCycle, pattern: newPattern, peeking });
+    }
+
+    // Marca un riesgo puntual como resuelto (no lo borra: queda en cycle.risks
+    // con resolvedAt, y pasa de "Riesgos asumidos" a "Riesgos resueltos" en
+    // el entregable exportado — nunca desaparece del rastro).
+    const riskResolveMatch = rest.match(/^risks\/([^/]+)\/resolve$/);
+    if (req.method === "POST" && riskResolveMatch) {
+      const cycle = cycles.get(cycleId);
+      if (!cycle) return json(res, { error: "Not found" }, 404);
+      const riskId = decodeURIComponent(riskResolveMatch[1]);
+      const now = new Date().toISOString();
+      const { cycle: resolvedCycle, found } = resolveRisk(cycle, riskId, { id: currentUser?.sub, name: currentUser?.email }, now);
+      if (!found) return json(res, { error: "Risk not found" }, 404);
+      const updated = { ...resolvedCycle, updatedAt: now, last_activity_at: now };
+      cycles.set(cycleId, updated);
+      void persistCycles();
+      logAudit(currentUser?.email, "risk_resolved", cycleId, { riskId });
+      return json(res, updated);
     }
 
     if (req.method === "GET" && !rest) {
