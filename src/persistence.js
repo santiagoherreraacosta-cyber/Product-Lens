@@ -35,7 +35,7 @@ const PG_TABLES = {
   },
   patterns: {
     table: "patterns",
-    extract: (p) => ({ tipo: p.tipo ?? null, causa: p.causa ?? null, sub_perfil: p.sub_perfil ?? null, transicion: p.transicion ?? null }),
+    extract: (p) => ({ tipo: p.tipo ?? null, causa: p.causa ?? null, sub_perfil: p.sub_perfil ?? null, transicion: p.transicion ?? null, test_elegido: p.test_elegido ?? null }),
   },
   decisions: {
     table: "decisions",
@@ -81,14 +81,16 @@ CREATE TABLE IF NOT EXISTS cycles (
   sub_perfil TEXT, updated_at TIMESTAMPTZ, data JSONB NOT NULL
 );
 CREATE TABLE IF NOT EXISTS patterns (
-  id TEXT PRIMARY KEY, tipo TEXT, causa TEXT, sub_perfil TEXT, transicion TEXT, data JSONB NOT NULL
+  id TEXT PRIMARY KEY, tipo TEXT, causa TEXT, sub_perfil TEXT, transicion TEXT, test_elegido TEXT, data JSONB NOT NULL
 );
 CREATE TABLE IF NOT EXISTS decisions (
   id TEXT PRIMARY KEY, cycle_id TEXT, fecha TIMESTAMPTZ, tipo TEXT, causa TEXT,
   sub_perfil TEXT, texto TEXT, actor TEXT, data JSONB NOT NULL
 );
+ALTER TABLE patterns ADD COLUMN IF NOT EXISTS test_elegido TEXT;
 CREATE INDEX IF NOT EXISTS idx_cycles_estado ON cycles(estado);
 CREATE INDEX IF NOT EXISTS idx_patterns_causa_sub ON patterns(causa, sub_perfil);
+CREATE INDEX IF NOT EXISTS idx_patterns_test ON patterns(test_elegido);
 CREATE INDEX IF NOT EXISTS idx_decisions_cycle ON decisions(cycle_id);
 `;
 

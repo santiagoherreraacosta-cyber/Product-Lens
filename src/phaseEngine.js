@@ -3,6 +3,7 @@
 // tests AND the live Spanish cycle schema produced by server.js / app.js
 // (cycle.brief.<field>.value/confirmed, cycle.causa = "M"|"A"|"P", etc.), so the
 // same engine works for the deployed data model.
+import { testCumpleUmbral } from "./doctrina.js";
 
 const PHASES = ["F0", "F1", "F2", "F3", "F4", "F5"];
 
@@ -19,19 +20,32 @@ const GATE_REQUIREMENTS = {
   F2: [
     { key: "intervention", message: "Falta la intervención.", isMet: hasIntervention },
     { key: "falsifiableHypothesis", message: "Falta la hipótesis falsable.", isMet: hasFalsifiableHypothesis },
+    { key: "sdtAutonomia", message: "Falta el check de SDT · Autonomía.", isMet: (c) => hasSdtCheck(c, "autonomia") },
+    { key: "sdtMastery", message: "Falta el check de SDT · Mastery (¿construye un seller que ya no nos necesita, o dependencia?).", isMet: (c) => hasSdtCheck(c, "mastery") },
+    { key: "sdtRelatedness", message: "Falta el check de SDT · Relatedness.", isMet: (c) => hasSdtCheck(c, "relatedness") },
   ],
   F3: [
-    { key: "metric", message: "Falta la métrica de éxito.", isMet: hasMetric },
-    { key: "outcomeMetric", message: "Marca la métrica primaria como outcome (no actividad) — el éxito no es adopción.", isMet: hasOutcomeMetric },
-    { key: "sizeAndDuration", message: "Falta tamaño de muestra / duración.", isMet: hasSizeAndDuration },
-    { key: "stopCriteria", message: "Falta el criterio de stop.", isMet: hasStopCriteria },
+    { key: "supuestoMasRiesgoso", message: "Falta el supuesto más riesgoso (si esto es falso, todo se cae).", isMet: hasSupuestoMasRiesgoso },
+    { key: "testElegido", message: "Falta elegir el test de la escalera de validación (§8) — el más barato que falsifique el supuesto.", isMet: hasTestElegido },
+    { key: "causalidadValidada", message: "La causalidad debe validarse a nivel ≥ Wizard of Oz para afirmar mecanismo — sube de escalón o deja el riesgo visible.", isMet: hasCausalidadValidada },
+    { key: "metric", message: "Falta la métrica de éxito (solo aplica cuando el test elegido es A/B).", isMet: hasMetric },
+    { key: "outcomeMetric", message: "Marca la métrica primaria como outcome (no actividad) — el éxito no es adopción. (solo aplica cuando el test elegido es A/B)", isMet: hasOutcomeMetric },
+    { key: "sizeAndDuration", message: "Falta tamaño de muestra / duración (solo aplica cuando el test elegido es A/B).", isMet: hasSizeAndDuration },
+    { key: "stopCriteria", message: "Falta el criterio de stop (solo aplica cuando el test elegido es A/B).", isMet: hasStopCriteria },
   ],
-  F4: [{ key: "trackingConfirmed", message: "Falta confirmar el tracking.", isMet: hasTrackingConfirmed }],
+  F4: [
+    { key: "specConductual", message: "Falta el spec conductual (comportamiento objetivo, loop completo, criterio de éxito conductual, anti-patrones) — el handoff a tech no puede ser solo prosa.", isMet: hasSpecConductual },
+    { key: "trackingConfirmed", message: "Falta confirmar el tracking.", isMet: hasTrackingConfirmed },
+  ],
   F5: [
     { key: "decision", message: "Falta la decisión de cierre.", isMet: hasDecision },
     { key: "namedPattern", message: "Falta nombrar el patrón.", isMet: hasNamedPattern },
   ],
 };
+
+// Los campos de A/B (métrica/tamaño/duración/stop) solo son gate cuando el test
+// elegido es "ab" — para el resto de la escalera (pre_mortem…fake_door) no aplican.
+const AB_ONLY_KEYS = new Set(["metric", "outcomeMetric", "sizeAndDuration", "stopCriteria"]);
 
 export function getCurrentPhase(cycle) {
   const phase = cycle.fase_actual ?? cycle.currentPhase ?? cycle.activePhase ?? cycle.phase;
@@ -42,10 +56,18 @@ export function canClosePhase(cycle, phase) {
   return getMissingGateRequirements(cycle, phase).length === 0;
 }
 
+// A/B-only requirements (metric/size-duration/stop/outcome) only apply to F3
+// when test_elegido = "ab" — otherwise they're not part of this cycle's gate.
+function applicableRequirements(cycle, phase) {
+  const reqs = GATE_REQUIREMENTS[phase];
+  if (phase !== "F3" || isAbTest(cycle)) return reqs;
+  return reqs.filter((req) => !AB_ONLY_KEYS.has(req.key));
+}
+
 // Returns { key, message }[] of unmet requirements for the given phase.
 export function getMissingGateRequirements(cycle, phase) {
   assertPhase(phase);
-  return GATE_REQUIREMENTS[phase]
+  return applicableRequirements(cycle, phase)
     .filter((req) => !req.isMet(cycle))
     .map((req) => ({ key: req.key, message: req.message }));
 }
@@ -54,7 +76,7 @@ export function getMissingGateRequirements(cycle, phase) {
 // in-chat phase guide checklist (A1).
 export function getGateRequirements(cycle, phase) {
   assertPhase(phase);
-  return GATE_REQUIREMENTS[phase].map((req) => ({ key: req.key, message: req.message, met: req.isMet(cycle) }));
+  return applicableRequirements(cycle, phase).map((req) => ({ key: req.key, message: req.message, met: req.isMet(cycle) }));
 }
 
 export function acceptRisk(cycle, phase, riskText, actor = {}) {
@@ -135,6 +157,41 @@ function hasOutcomeMetric(cycle) {
 
 function hasStopCriteria(cycle) {
   return hasText(cycle.stopCriteria) || hasText(cycle.experiment?.criterio_stop?.value);
+}
+
+// --- F2: guardrails SDT (autonomía/mastery/relatedness), doctrina §4.1 ---
+function hasSdtCheck(cycle, dimension) {
+  return cycle.brief?.sdt?.[dimension]?.check === true;
+}
+
+// --- F3: escalera de validación (§8) — "validar barato", A/B ya no default ---
+function isAbTest(cycle) {
+  return (cycle.experiment?.test_elegido ?? null) === "ab";
+}
+
+function hasSupuestoMasRiesgoso(cycle) {
+  return hasText(cycle.experiment?.supuesto_mas_riesgoso);
+}
+
+function hasTestElegido(cycle) {
+  return hasText(cycle.experiment?.test_elegido);
+}
+
+// La causalidad de mecanismo exige un test en o por encima de Wizard of Oz en
+// la escalera (default de doctrina §4.1); un umbral distinto puede declararse
+// en `experiment.umbral_causalidad`.
+function hasCausalidadValidada(cycle) {
+  const test = cycle.experiment?.test_elegido;
+  if (!hasText(test)) return false;
+  return testCumpleUmbral(test, cycle.experiment?.umbral_causalidad);
+}
+
+// --- F4: spec conductual (el handoff a tech), doctrina §4.1 ---
+function hasSpecConductual(cycle) {
+  const spec = cycle.spec_conductual;
+  if (!spec) return false;
+  return hasText(spec.comportamiento_objetivo) && hasText(spec.criterio_exito_conductual)
+    && spec.loop_completo && Object.values(spec.loop_completo).some(hasText);
 }
 
 function hasTrackingConfirmed(cycle) {

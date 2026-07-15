@@ -76,22 +76,63 @@ operación**: en qué escalón de órdenes mensuales está. Reemplaza el enum an
 
 Vocabulario en español, uno solo en schema, UI y prompts. Enum: `F0 | F1 | F2 | F3 | F4 | F5`.
 
+> **Actualización (cierre del E2E del lente):** F3 y F4 se renombran para enseñar la disciplina correcta. "Experimento" cebaba el salto directo a A/B; "Despliegue" invitaba a borrar el spec conductual antes de construir. Nuevo vocabulario: **F3 Validar** (Test) y **F4 Build/Spec**. El código acepta los nombres viejos (`Experimento`, `Despliegue`) como alias de compatibilidad para datos existentes — ver `src/doctrina.js`.
+
 | Fase | Nombre (es) | Objetivo | Gate de salida | Entregable |
 |------|-------------|----------|----------------|------------|
 | **F0** | Detección | Detectar un comportamiento anómalo en un segmento | Behavior Statement (quién·hace·no-hace) + 1 señal cuantitativa + **segmento** identificado | Behavior Statement |
-| **F1** | Diagnóstico | Encontrar la causa raíz con B=MAP | **≥2 fuentes** convergentes + causa `M/A/P` **confirmada** por humano | Intervention Brief (causa) |
-| **F2** | Intervención | Diseñar la intervención sobre la causa | Intervención mapeada a la causa + hipótesis falsable | Intervention Brief (hipótesis) |
-| **F3** | Experimento | Dimensionar el experimento | Métrica primaria (**outcome**) + tamaño/duración + criterio de stop | Experiment Card |
-| **F4** | Despliegue | Lanzar y observar (estado *live*) | Experimento corriendo + tracking confirmado | Experiment Card (live) |
-| **F5** | Aprendizaje | Medir, **decidir** y destilar el patrón | Resultado + **decisión** (escalar/matar/iterar) + patrón nombrado | Pattern Card → Biblioteca |
+| **F1** | Diagnóstico | Encontrar la causa raíz con B=MAP | **≥2 fuentes** convergentes + causa `M/A/P` **confirmada** por humano + `sesgo` nombrado | Intervention Brief (causa) |
+| **F2** | Intervención | Diseñar la intervención sobre la causa | Intervention Brief completo (7 secciones) + **3 checks de SDT** (autonomía/mastery/relatedness) | Intervention Brief |
+| **F3** | Validar | Elegir el test más barato que falsifica el supuesto más riesgoso (escalera de validación, §8) | `supuesto_mas_riesgoso` + `test_elegido` + causalidad validada a nivel **≥ Wizard of Oz** | Experiment Card |
+| **F4** | Build / Spec | Traducir la intervención validada en spec conductual para tech, con anti-patrones | `spec_conductual` escrito y entendido + tracking confirmado | Spec conductual |
+| **F5** | Aprendizaje | Medir, **decidir** y destilar el patrón | Resultado (actividad **y** outcome separados) + **decisión** (escalar/matar/iterar) + patrón nombrado | Pattern Card → Biblioteca |
 
 **Semántica bloqueada (resuelve la divergencia del repo):**
 - La **decisión** (escalar/matar/iterar) vive en **F5**, no en una fase propia. No se puede decidir antes de correr y medir.
-- **F4 = Despliegue** (correr + observar), no "Decisión".
+- **F4 = Build/Spec** (traducir la intervención validada en spec para tech), no "Despliegue" ni "Decisión". El experimento ya se validó en F3; F4 no es donde se lee el resultado del A/B — eso pasó de agenda cuando F3 dejó de asumir A/B como default.
 - El **gate de decisión** es el cierre de F5. Cerrar sin decisión = `[CONFIRMAR]` / risk tag (no bloqueo).
-- `01_Modulos_Fases.md` (que ponía Decisión como F4) es el archivo a corregir.
+- `01_Modulos_Fases.md` y `00_Orquestador.md` usan este vocabulario.
+- **Cold-start:** un ciclo puede crearse directamente en F3 cuando no hay diagnóstico previo (ej. feature nueva sin datos) — baja derecho a Fake Door / Wizard of Oz en vez de forzar F0→F1→F2 lineal.
 
 **Regla de gates (todas las fases):** asesoran, no bloquean. Avanzar con gate abierto deja un **tag de riesgo persistente** (fase, gate, motivo, autor, fecha, reversible).
+
+---
+
+## 4.1 Campos estructurados por fase (cierre del E2E del lente)
+
+El schema anterior dejaba F2, F3 y F4 como prosa libre del LLM. Estos campos son de primera clase: se guardan, se validan y manejan gate — no son solo copy.
+
+**F1 — sesgo + proxy:**
+- `sesgo` enum: `present_bias | choice_overload | ambiguedad | status_quo | loss_aversion` (§7 del orquestador — cada uno tiene su antídoto).
+- `proxy_y_segunda_senal` `{ proxy: string, segunda_senal: string }` — el evento conductual es proxy del shift cognitivo, nunca el shift en sí (filtro §6).
+
+**F2 — guardrails SDT + trilema de fricción + Hook:**
+- `sdt.autonomia` / `sdt.mastery` / `sdt.relatedness` — cada uno `{ check: boolean, nota: string }`. Mastery pregunta: ¿construye un seller que ya no nos necesita, o dependencia?
+- `jueves_en_la_tarde` `{ check: boolean }` — ¿funciona sin alta motivación (jueves 3pm, no lunes con café)?
+- `anti_roadmap` `{ check: boolean, nota: string }` — ¿toca shaming, leaderboard, social proof negativo o engagement theater? Check=true significa "confirmado que NO lo toca".
+- `friccion` `{ eliminar: string[], preservar: string[], es_inversion: string[] }` — trilema: eliminar roba energía; preservar/invertir la devuelve como skill u ownership.
+- `hook` `{ trigger: string, action: string, variable_reward: string, investment_phase: string }` — Investment siempre después del reward, nunca antes.
+
+**F3 — escalera de validación (§8), no A/B por default:**
+- `supuesto_mas_riesgoso` string — si esto es falso, todo se cae.
+- `tipo_supuesto` enum: `deseabilidad | factibilidad | viabilidad`.
+- `test_elegido` enum: `pre_mortem | expert_review | guerrilla_5u | wizard_of_oz | concierge | n1_sced | fake_door | ab` (orden de la escalera, más barato primero).
+- `por_que_este` string — por qué es el test más barato que puede FALSIFICAR el supuesto.
+- `resultado_confirma` / `resultado_refuta` string.
+- `umbral_causalidad` — default `wizard_of_oz`; para afirmar mecanismo causal se exige `test_elegido` en o por encima de ese escalón.
+- `costo_de_equivocarse` string — downside / deuda estratégica.
+- `confianza` 1–5, `decision` enum `avanzar_f4 | re_diagnosticar | matar`.
+- Los campos de A/B (`variable`, `tamano_muestra`, `duracion`, `criterio_stop`) son **opcionales**, solo aplican cuando `test_elegido = "ab"`. Ya no son el default del schema.
+
+**F4 — Spec conductual (el entregable que hoy no tiene casa):**
+- `spec_conductual.comportamiento_objetivo`, `.loop_completo` (Trigger→Action→Reward→Investment), `.friccion` (elimina/preserva/invierte), `.copy_por_nivel_cognitivo`.
+- `spec_conductual.anti_patrones` string[] — anti-roadmap + específicos del caso: qué NO debe hacer la implementación.
+- `spec_conductual.criterio_exito_conductual` string — no "se entregó la feature", sino "el comportamiento ocurrió".
+
+**F5 — actividad vs outcome, nunca fundidos:**
+- `cierre.actividad` string (¿ocurrió el comportamiento?) y `cierre.outcome` string (¿produjo el valor?) — separados, nunca uno como proxy del otro.
+- `cierre.transicion_cognitiva` `{ proxy, segunda_senal }`.
+- `cierre.churn_por_nivel` string — nota de Good Churn: un graduado a Principalidad no es fracaso.
 
 ---
 
@@ -113,6 +154,13 @@ type Fase = "F0" | "F1" | "F2" | "F3" | "F4" | "F5";
 type Decision = "escalar" | "matar" | "iterar";
 type PatternType = "patron" | "anti_patron"; // derivado: matar→anti_patron, escalar→patron
 
+type Sesgo = "present_bias" | "choice_overload" | "ambiguedad" | "status_quo" | "loss_aversion";
+type TipoSupuesto = "deseabilidad" | "factibilidad" | "viabilidad";
+// Orden = escalera de validación (§8), más barato primero.
+type TestElegido = "pre_mortem" | "expert_review" | "guerrilla_5u" | "wizard_of_oz"
+  | "concierge" | "n1_sced" | "fake_door" | "ab";
+type DecisionF3 = "avanzar_f4" | "re_diagnosticar" | "matar";
+
 const CAUSA_COLOR = { M: "#8B5CF6", A: "#3B82F6", P: "#14B8A6" };
 const SUB_CAUSA = {
   M: ["motivacion", "confianza", "incentivo"],
@@ -121,8 +169,14 @@ const SUB_CAUSA = {
 };
 const FASE_LABEL = {
   F0: "Detección", F1: "Diagnóstico", F2: "Intervención",
-  F3: "Experimento", F4: "Despliegue", F5: "Aprendizaje",
+  F3: "Validar", F4: "Build / Spec", F5: "Aprendizaje",
 };
+// Alias de compatibilidad para datos/labels viejos (pre cierre del E2E).
+const FASE_LABEL_LEGACY_ALIASES = { "Experimento": "F3", "Despliegue": "F4" };
+const TEST_ESCALERA_ORDEN = [
+  "pre_mortem", "expert_review", "guerrilla_5u", "wizard_of_oz",
+  "concierge", "n1_sced", "fake_door", "ab",
+];
 ```
 
 ---

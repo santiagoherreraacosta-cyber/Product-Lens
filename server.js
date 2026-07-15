@@ -9,10 +9,23 @@ import { assembleSystemContext } from "./src/memory.js";
 import { initStore, load as storeLoad, save as storeSave } from "./src/persistence.js";
 import { getMissingGateRequirements, getGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 import { deepMerge, looksLikeFeature, applyBriefUpdates, resolveRisk } from "./src/cycleLogic.js";
-import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, TRANSITIONS, SUB_CAUSA } from "./src/doctrina.js";
+import { patternTypeFromDecision, FASE_LABEL, PHASES as DOCTRINE_PHASES, normalizeSubPerfil, normalizeTransition, normalizeSubCausa, TRANSITIONS, SUB_CAUSA, normalizeTestElegido } from "./src/doctrina.js";
 
 // Default phase seed (stepper UI) with canonical Spanish labels from the doctrine.
-const defaultPhases = () => DOCTRINE_PHASES.map((key, i) => ({ key, label: FASE_LABEL[key], state: i === 0 ? "active" : "todo" }));
+// `startPhase` supports cold-start (doctrina §4): a cycle can be created
+// directly in F3 (Validar) when there's no prior diagnosis — e.g. a new
+// feature with no historical data, straight to Fake Door / Wizard of Oz.
+// Phases before `startPhase` are marked "skipped" (not "done" — they were
+// never actually walked), so the risk trail stays honest.
+const defaultPhases = (startPhase = "F0") => {
+  const startIdx = Math.max(0, DOCTRINE_PHASES.indexOf(startPhase));
+  return DOCTRINE_PHASES.map((key, i) => ({
+    key,
+    label: FASE_LABEL[key],
+    state: i === startIdx ? "active" : "todo",
+    ...(i < startIdx ? { skipped: true, note: "cold-start: ciclo arrancó en " + startPhase } : {}),
+  }));
+};
 
 const PORT = process.env.PORT || 8000;
 const ROOT = process.cwd();
@@ -592,9 +605,16 @@ async function handle(req, res) {
   if (req.method === "POST" && pathname === "/api/cycles") {
     const body = await readBody(req);
     if (!body.title) return json(res, { error: "title required" }, 400);
+    // Cold-start (doctrina §4): un ciclo puede arrancar directo en F3 (Validar)
+    // cuando no hay diagnóstico previo — feature nueva sin datos, baja derecho
+    // a Fake Door/Wizard of Oz en vez de forzar F0→F1→F2 lineal.
+    const coldStart = body.fase_actual === "F3" && body.cold_start === true;
+    const startPhase = coldStart ? "F3" : (DOCTRINE_PHASES.includes(body.fase_actual) ? body.fase_actual : "F0");
     // F0 validation (Fase 2): reject solution/feature framing — a cycle must
     // start from a behavior ("quién hace/no hace qué"), not a feature to build.
-    const featureFramed = looksLikeFeature(body.title);
+    // No aplica en cold-start: F3 arranca directo de un supuesto a validar, no
+    // de un behavior statement.
+    const featureFramed = !coldStart && looksLikeFeature(body.title);
     if (!body.force && featureFramed) {
       logAudit(currentUser?.email, "behavior_rejected", "new", { reason: "feature", title: body.title });
       return json(res, {
@@ -613,7 +633,10 @@ async function handle(req, res) {
       sub_causa: normalizeSubCausa(body.sub_causa, body.causa),
       causa: body.causa ?? null,
       causa_source: body.causa_source ?? null,
-      fase_actual: body.fase_actual ?? "F0",
+      sesgo: null,
+      proxy_y_segunda_senal: null,
+      fase_actual: startPhase,
+      cold_start: coldStart,
       estado: "activo",
       resultado_cierre: null,
       // "risks" (no "riesgos"): acceptRisk()/resolveRisk() y la UI leen y
@@ -622,17 +645,23 @@ async function handle(req, res) {
       risks: [],
       brief: body.brief ?? {},
       experiment: body.experiment ?? {},
+      spec_conductual: null,
       cierre: null,
       messages: [],
       // legacy fields (stepper UI still uses these)
-      phases: body.phases ?? defaultPhases(),
-      activePhase: body.activePhase ?? "F0",
+      phases: body.phases ?? defaultPhases(startPhase),
+      activePhase: startPhase,
       riskAccepted: false,
       createdAt: now,
       updatedAt: now,
       last_activity_at: now,
       createdBy: currentUser?.sub,
     };
+    if (coldStart) {
+      cycle = acceptRisk(cycle, "F3", "Ciclo cold-start: arrancó directo en F3 (Validar) sin diagnóstico previo (F0–F2). El supuesto a validar no viene de una causa B=MAP confirmada.", { id: currentUser?.sub, name: currentUser?.email });
+      cycle.riskAccepted = true;
+      logAudit(currentUser?.email, "cycle_cold_started", cycle.id, { title: body.title });
+    }
     // Escape hatch: the PM overrode the feature-vs-behavior guard. Not free —
     // record a risk on the cycle (surfaced in the risk log + Métricas).
     if (featureFramed && body.force) {
@@ -775,6 +804,9 @@ async function handle(req, res) {
         causa: cycle.causa ?? null,
         sub_perfil: (cycle.sub_perfil && String(cycle.sub_perfil).trim()) || "sin_clasificar",
         transicion: cycle.transicion ?? null,
+        // Qué test (escalera de validación §8) mató o confirmó el supuesto —
+        // filtrable en la Biblioteca (Cambio 4).
+        test_elegido: normalizeTestElegido(cycle.experiment?.test_elegido) ?? null,
         aprendizaje: body.learning.trim(),
         delta_metrica: body.delta?.trim() || null,
         evidencia: body.evidencia?.trim() || null,
@@ -805,6 +837,12 @@ async function handle(req, res) {
         cierre: {
           metric_result: body.metric_result ?? null,
           delta: body.delta ?? null,
+          // Actividad ≠ outcome (doctrina §6): nunca fundidos, nunca uno como
+          // proxy del otro sin evidencia.
+          actividad: body.actividad?.trim() || null,
+          outcome: body.outcome?.trim() || null,
+          transicion_cognitiva: body.transicion_cognitiva ?? cycle.proxy_y_segunda_senal ?? null,
+          churn_por_nivel: body.churn_por_nivel?.trim() || null,
           decision: decision ?? "[CONFIRMAR]",
           learning: body.learning.trim(),
           pattern_id: patternId,
