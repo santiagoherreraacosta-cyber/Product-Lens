@@ -543,13 +543,14 @@ function renderPhaseGuide(cycle) {
 }
 
 // F1 evidence shortcut: switch to the Brief, then scroll + focus + highlight the
-// first empty of the two evidence fields (primary → second source).
+// first of the two evidence fields that still needs action — empty, or filled
+// by la IA but pending confirmación humana (el gate exige ambas cosas).
 function focusEvidenceField() {
   setDeliverable("brief");
   const primary = document.getElementById("briefEvidence");
   const second = document.getElementById("secondSource");
-  const isEmpty = (el) => !el || !(el.textContent || "").trim() || /CONFIRMAR/.test(el.textContent);
-  const target = isEmpty(primary) ? primary : (isEmpty(second) ? second : primary);
+  const needsAction = (el) => !el || !(el.dataset.value || "").trim() || el.classList.contains("is-pending-confirm");
+  const target = needsAction(primary) ? primary : (needsAction(second) ? second : primary);
   if (!target) return;
   target.scrollIntoView({ behavior: "smooth", block: "center" });
   restartAnimation(target, "fillpop");
@@ -1725,7 +1726,10 @@ function makeFieldEditable(el, cyclePath) {
     if (el.dataset.editing) return;
     el.dataset.editing = "1";
     const isConfirm = el.classList.contains("confirm-field");
-    const current = isConfirm ? "" : el.textContent.trim();
+    // Prefiere el valor crudo guardado en dataset.value (setField/setConfirmableField
+    // lo mantienen sincronizado) sobre el texto visible, que puede llevar un
+    // badge decorativo ("IA · sin confirmar") que no debe colarse al editar.
+    const current = isConfirm ? "" : (el.dataset.value ?? el.textContent.trim());
     const input = document.createElement("input");
     input.className = "brief-inline-input";
     input.value = current;
@@ -1770,15 +1774,37 @@ function makeFieldEditable(el, cyclePath) {
 // Populate a brief panel DOM element with a real value or reset to [CONFIRMAR]
 function setField(el, value) {
   if (!el) return;
+  el.dataset.value = value ?? "";
   if (value) {
     el.textContent = value;
-    el.classList.remove("confirm-field");
+    el.classList.remove("confirm-field", "is-pending-confirm");
     el.classList.add("mono-value");
   } else {
     // Empty state: an actionable placeholder, not the "[CONFIRMAR]" jargon.
     el.innerHTML = '<span class="field-cta">Clic para escribir</span>';
     el.classList.add("confirm-field");
-    el.classList.remove("mono-value");
+    el.classList.remove("mono-value", "is-pending-confirm");
+  }
+}
+
+// Como setField(), pero para campos donde el gate exige confirmación humana
+// explícita — hoy solo evidencia_primaria y segunda_fuente (gate F1, doctrina
+// §1: "la causa la propone el LLM y la confirma el humano"). Sin esto, un
+// valor sugerido por el LLM (confirmed:false) se veía IDÉNTICO a uno escrito
+// por el PM, aunque el gate seguía bloqueado pidiendo la confirmación.
+function setConfirmableField(el, field) {
+  if (!el) return;
+  const value = field?.value ?? null;
+  if (!value) { setField(el, null); return; }
+  el.dataset.value = value;
+  if (field?.confirmed) {
+    el.textContent = value;
+    el.classList.remove("confirm-field", "is-pending-confirm");
+    el.classList.add("mono-value");
+  } else {
+    el.innerHTML = `<span class="pending-confirm-badge">IA · sin confirmar</span>${escapeHtml(value)}`;
+    el.classList.add("mono-value", "is-pending-confirm");
+    el.classList.remove("confirm-field");
   }
 }
 
@@ -1824,15 +1850,36 @@ function loadBriefFromCycle(cycle) {
   if (briefCogLevel) briefCogLevel.innerHTML = transitionOptions(cycle?.transicion ?? "");
   const briefSegment = document.querySelector("#briefSegment");
   setField(briefSegment, cycle?.segmento_objetivo ?? null);
-  setField(briefEvidence, b.evidencia_primaria?.value ?? null);
-  setField(secondSource, b.segunda_fuente?.value ?? null);
+  setConfirmableField(briefEvidence, b.evidencia_primaria);
+  setConfirmableField(secondSource, b.segunda_fuente);
   setField(briefIntervention, b.intervencion?.value ?? null);
   setField(hypothesisField, b.hipotesis?.value ?? null);
   setField(metricField, b.senal_cuantitativa?.value ?? null);
 
-  // B=MAP selector sync
+  // B=MAP selector sync + estado de confirmación. El botón activo por sí solo
+  // no distingue "la IA lo sugirió" de "tú lo confirmaste" — pero el gate F1
+  // sí exige justo esa distinción (causa_source === "pm_confirmed"). Sin este
+  // texto, el botón resaltado podía hacer creer que la causa ya quedó
+  // confirmada cuando en realidad el gate seguía pidiendo el clic.
   const activeCause = cycle?.causa;
   document.querySelectorAll(".bmap-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.cause === activeCause));
+  const briefCauseEl = document.getElementById("briefCause");
+  if (briefCauseEl) {
+    const causaConfirmed = cycle?.causa_source === "pm_confirmed" || b.causa?.confirmed === true;
+    if (!activeCause) {
+      briefCauseEl.innerHTML = '<span class="field-cta">Elige una causa arriba</span>';
+      briefCauseEl.classList.add("confirm-field");
+      briefCauseEl.classList.remove("mono-value");
+    } else if (causaConfirmed) {
+      briefCauseEl.textContent = `Confirmada: ${causeMap[activeCause] ?? activeCause}`;
+      briefCauseEl.classList.remove("confirm-field");
+      briefCauseEl.classList.add("mono-value");
+    } else {
+      briefCauseEl.innerHTML = `<strong>Sugerida por la IA:</strong> ${causeMap[activeCause] ?? activeCause} — clic arriba para confirmarla`;
+      briefCauseEl.classList.add("confirm-field");
+      briefCauseEl.classList.remove("mono-value");
+    }
+  }
   renderSubCausa(cycle);
 
   // Experiment card — all fields
