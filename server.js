@@ -616,7 +616,10 @@ async function handle(req, res) {
       fase_actual: body.fase_actual ?? "F0",
       estado: "activo",
       resultado_cierre: null,
-      riesgos: body.riesgos ?? [],
+      // "risks" (no "riesgos"): acceptRisk()/resolveRisk() y la UI leen y
+      // escriben cycle.risks — "riesgos" era un campo paralelo que nadie
+      // más tocaba después de la creación (ver fix en src/memory.js).
+      risks: [],
       brief: body.brief ?? {},
       experiment: body.experiment ?? {},
       cierre: null,
@@ -931,7 +934,7 @@ async function handle(req, res) {
         fase_actual: "F0",
         estado: "activo",
         resultado_cierre: null,
-        riesgos: [],
+        risks: [],
         brief: { hipotesis: { value: pattern.aprendizaje ?? "", confirmed: false } },
         experiment: {},
         cierre: null,

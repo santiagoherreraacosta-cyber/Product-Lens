@@ -127,10 +127,6 @@ function getActivePhase() {
   return getCurrentCycle()?.activePhase ?? "F0";
 }
 
-function isRiskAccepted() {
-  return getCurrentCycle()?.riskAccepted ?? false;
-}
-
 // --- Auth flow ---
 function showLogin() {
   loginView.hidden = false;

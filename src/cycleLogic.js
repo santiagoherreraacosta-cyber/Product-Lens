@@ -89,5 +89,9 @@ export function resolveRisk(cycle, riskId, actor = {}, now = new Date().toISOStr
   const updatedRisks = risks.map((r) => r.id === riskId
     ? { ...r, resolvedAt: now, resolvedBy: actor }
     : r);
-  return { cycle: { ...cycle, risks: updatedRisks }, found: true };
+  // riskAccepted es el flag legacy que la card de Home usa para el badge
+  // "riesgo abierto" (cycleCardHtml en app.js) — se recalcula aquí o queda
+  // en true para siempre, incluso después de resolver el último riesgo.
+  const riskAccepted = updatedRisks.some((r) => !r.resolvedAt);
+  return { cycle: { ...cycle, risks: updatedRisks, riskAccepted }, found: true };
 }
