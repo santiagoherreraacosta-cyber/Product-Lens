@@ -1382,9 +1382,15 @@ function renderMarkdown(text) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // 2. Fenced code blocks (must run before inline code)
-  s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
-    `<pre><code>${code.trimEnd()}</code></pre>`);
+  // 2. Fenced code blocks: pull them out behind a placeholder so a code
+  // sample that itself demonstrates markdown (a table, a heading, **bold**)
+  // isn't re-interpreted as real markup by the steps below — restored
+  // verbatim as the very last step.
+  const codeBlocks = [];
+  s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${code.trimEnd()}</code></pre>`);
+    return ` CODEBLOCK${codeBlocks.length - 1} `;
+  });
 
   // 3. Inline code
   s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
@@ -1404,11 +1410,25 @@ function renderMarkdown(text) {
   // they fell through to a plain <p>, showing the raw pipes to the user).
   const isTableRow = (line) => line.includes("|") && line.trim().replaceAll("|", "").trim().length > 0;
   const isSeparatorRow = (line) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(line.trim());
+  // Scans char-by-char instead of a plain split("|") so a `\|` escape or a
+  // pipe inside an (already-converted) <code> span doesn't create a phantom
+  // extra column — e.g. "| `a | b` | ok |" or "| a \| b | ok |".
   const splitRow = (line) => {
     let t = line.trim();
     if (t.startsWith("|")) t = t.slice(1);
-    if (t.endsWith("|")) t = t.slice(0, -1);
-    return t.split("|").map((c) => c.trim());
+    if (t.endsWith("|") && !t.endsWith("\\|")) t = t.slice(0, -1);
+    const cells = [];
+    let cur = "";
+    let inCode = false;
+    for (let k = 0; k < t.length; k++) {
+      if (t[k] === "\\" && t[k + 1] === "|") { cur += "|"; k++; continue; }
+      if (!inCode && t.startsWith("<code>", k)) { cur += "<code>"; k += 5; inCode = true; continue; }
+      if (inCode && t.startsWith("</code>", k)) { cur += "</code>"; k += 6; inCode = false; continue; }
+      if (t[k] === "|" && !inCode) { cells.push(cur.trim()); cur = ""; continue; }
+      cur += t[k];
+    }
+    cells.push(cur.trim());
+    return cells;
   };
   const cellAlign = (sepCell) => {
     const left = sepCell.startsWith(":"), right = sepCell.endsWith(":");
@@ -1449,9 +1469,12 @@ function renderMarkdown(text) {
     if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); i++; continue; }
     const task = /^[-*] \[([ xX])\] (.*)$/.exec(line);
     if (task) {
-      if (!inUl) { if (inOl) { out.push("</ol>"); inOl = false; } out.push('<ul class="md-tasklist">'); inUl = true; }
+      // Styling lives on the <li> (md-task), not the <ul> — a task item can
+      // follow a plain bullet within the same list, and the parent <ul> is
+      // only opened once (by whichever item — plain or task — comes first).
+      if (!inUl) { if (inOl) { out.push("</ol>"); inOl = false; } out.push("<ul>"); inUl = true; }
       const checked = task[1].toLowerCase() === "x";
-      out.push(`<li><label><input type="checkbox" disabled${checked ? " checked" : ""}> ${task[2]}</label></li>`);
+      out.push(`<li class="md-task"><label><input type="checkbox" disabled${checked ? " checked" : ""}> ${task[2]}</label></li>`);
       i++; continue;
     }
     if (/^[-*] /.test(line)) {
@@ -1475,14 +1498,20 @@ function renderMarkdown(text) {
   s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
   s = s.replace(/_([^_\n]+)_/g, "<em>$1</em>");
 
-  // 6. Wrap plain-text runs in <p>, convert single \n to <br> within paragraphs
+  // 6. Wrap plain-text runs in <p>, convert single \n to <br> within paragraphs.
+  // A lone code-block placeholder is left unwrapped too (restored to <pre> next).
+  const isCodeBlockPlaceholder = (t) => /^CODEBLOCK\d+$/.test(t);
   const blocks = s.split(/\n{2,}/);
   s = blocks.map((block) => {
     const t = block.trim();
     if (!t) return "";
-    if (/^<(h[2-4]|ul|ol|pre|hr|blockquote|div)/.test(t)) return t;
+    if (/^<(h[2-4]|ul|ol|pre|hr|blockquote|div)/.test(t) || isCodeBlockPlaceholder(t)) return t;
     return `<p>${t.replace(/\n/g, "<br>")}</p>`;
   }).join("\n");
+
+  // 7. Restore fenced code blocks verbatim — nothing above (tables, headings,
+  // bold/italic, inline code) ever saw their real content.
+  s = s.replace(/CODEBLOCK(\d+)/g, (_, idx) => codeBlocks[Number(idx)]);
 
   return s;
 }

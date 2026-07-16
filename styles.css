@@ -419,11 +419,12 @@ button { cursor: pointer; }
 .ai-body tbody tr:last-child td { border-bottom: none; }
 .ai-body tbody tr:nth-child(even) { background: var(--hover); }
 /* GFM task lists ("- [ ] hacer X") — checkbox visual, no interactivo (el
-   estado lo fija el mensaje del LLM, no el usuario clicando en el chat). */
-.ai-body ul.md-tasklist { list-style: none; padding-left: 0; }
-.ai-body ul.md-tasklist li { margin-bottom: 4px; }
-.ai-body ul.md-tasklist label { align-items: flex-start; cursor: default; display: flex; gap: 7px; }
-.ai-body ul.md-tasklist input[type="checkbox"] { margin-top: 3px; }
+   estado lo fija el mensaje del LLM, no el usuario clicando en el chat).
+   Escala por <li>, no por <ul>, porque un item de tarea puede seguir a un
+   bullet normal dentro de la misma lista. */
+.ai-body li.md-task { list-style: none; margin-bottom: 4px; }
+.ai-body li.md-task label { align-items: flex-start; cursor: default; display: flex; gap: 7px; }
+.ai-body li.md-task input[type="checkbox"] { margin-top: 3px; }
 
 .primary-action, .secondary-action, .export-button, .send-button {
   border: 0;
