@@ -1374,26 +1374,86 @@ function renderPhaseBar(phases, active, selected) {
 
 // --- Messages ---
 // Convert LLM Markdown output to safe HTML — no external dependencies
+// The LLM doesn't always put real line breaks between elements — despite the
+// system prompt asking for it (00_Orquestador.md §3), it sometimes still
+// concatenates a heading, an hr, and a table's rows into one run-on sentence
+// ("### Título | col | col | |---|---| | val | val |" instead of an actual
+// table). Recover the intended line structure before the real markdown pass
+// runs, so the renderer below — which is line-based — has something to work
+// with. Runs per-line (not as one whole-string regex pass) so it can't reach
+// into an already-well-formed row and split it on an internal cell pipe —
+// only a line that does NOT already start with "|" gets the prose-vs-table
+// split, and the concatenated-row fixup only applies to the part recognized
+// as a table row.
+function normalizeInlineMarkdown(text) {
+  let t = text;
+
+  // 1. Inline horizontal rule ("texto --- más texto") → its own line.
+  // Requires exactly one literal space on each side (not a table's "|---|"
+  // separator row, which has no whitespace at all) — a bounded, single-width
+  // requirement instead of a quantified one avoids ambiguous backtracking.
+  // Excluding "-" from the prefix keeps a run of 4+ dashes from matching
+  // itself (the first dash captured as "prose", the rest as the rule).
+  t = t.replace(/([^\n-]) (-{3,}) (?=\S)/g, "$1\n\n$2\n\n");
+
+  // 2. Inline heading marker ("texto ### Encabezado") → its own line.
+  // Same reasoning: excluding "#" from the prefix keeps "### " from matching
+  // itself (first "#" as "prose", remaining "## " as the marker).
+  t = t.replace(/([^\n#]) (#{1,3} )/g, "$1\n\n$2");
+
+  // 3/4. Table recovery, line by line.
+  const collapseRowBoundaries = (row) => row.replaceAll("|  |", "|\n|").replaceAll("| |", "|\n|").replaceAll("||", "|\n|");
+  t = t.split("\n").map((line) => {
+    if (line.trimStart().startsWith("|")) {
+      // Already its own row — only fix concatenated rows within it (the
+      // run-on boundary between two rows always looks like "| |": end-of-row
+      // pipe, whitespace, start-of-next-row pipe — a genuinely empty middle
+      // cell is rare enough in this app's use, comparison/Dropi Score
+      // tables, that the trade-off is fine).
+      return collapseRowBoundaries(line);
+    }
+    // Prose immediately followed by a table row on the same line
+    // ("cada fila? | col | col |") → break before the row starts. Anchored
+    // to the end of the line ($) so it only matches when the *rest* of the
+    // line is entirely pipe-delimited — never a mid-sentence "|" aside.
+    const m = /^([^|]*?[^|\s]) ?(\|(?:[^|]+\|)+)$/.exec(line);
+    return m ? `${m[1]}\n\n${collapseRowBoundaries(m[2])}` : line;
+  }).join("\n");
+
+  return t;
+}
+
 function renderMarkdown(text) {
   if (!text) return "";
-  // 1. Escape HTML entities first (XSS protection)
-  let s = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // 2. Fenced code blocks: pull them out behind a placeholder so a code
+  // 1. Fenced code blocks come out first — behind a placeholder — so a code
   // sample that itself demonstrates markdown (a table, a heading, **bold**)
-  // isn't re-interpreted as real markup by the steps below — restored
-  // verbatim as the very last step.
+  // isn't touched by normalizeInlineMarkdown() or re-interpreted as real
+  // markup by the steps below. Restored verbatim as the very last step.
+  const escapeHtmlEntities = (str) => str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
   const codeBlocks = [];
-  s = s.replace(/```\w*\n([\s\S]*?)```/g, (_, code) => {
-    codeBlocks.push(`<pre><code>${code.trimEnd()}</code></pre>`);
+  const raw = text.replace(/```\w*\n([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtmlEntities(code.trimEnd())}</code></pre>`);
     return ` CODEBLOCK${codeBlocks.length - 1} `;
   });
 
-  // 3. Inline code
-  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  // 1b. Inline code spans come out the same way, for the same reason — a
+  // span like `foo --- bar` or `a | b` must never have its punctuation
+  // reinterpreted as an hr/heading/table cell boundary by the steps below.
+  const inlineCodes = [];
+  const rawNoInline = raw.replace(/`([^`\n]+)`/g, (_, code) => {
+    inlineCodes.push(`<code>${escapeHtmlEntities(code)}</code>`);
+    return `INLINECODE${inlineCodes.length - 1}`;
+  });
+
+  // 2. Recover run-on markdown, then escape the rest for display.
+  let s = escapeHtmlEntities(normalizeInlineMarkdown(rawNoInline));
+
+  // 3. Restore inline code now — splitRow()'s <code>-span protection (below)
+  // and the bold/italic pass both expect real <code> tags, not placeholders.
+  s = s.replace(/INLINECODE(\d+)/g, (_, idx) => inlineCodes[Number(idx)]);
 
   // 4. Line-by-line pass for headings, lists, tables, blockquotes, HR
   const lines = s.split("\n");
@@ -1403,6 +1463,18 @@ function renderMarkdown(text) {
   const closeLists = () => {
     if (inUl) { out.push("</ul>"); inUl = false; }
     if (inOl) { out.push("</ol>"); inOl = false; }
+  };
+
+  // Even after normalizeInlineMarkdown() gives a heading its own line, the
+  // model sometimes still writes it as one run-on sentence ("### ¿Qué es X?
+  // Es un resumen de...") with no break before the explanation. Cut at the
+  // first sentence-ending punctuation so the explanation becomes its own
+  // paragraph instead of being swallowed into the <h3>/<h4>.
+  const splitHeadingContent = (content) => {
+    const m = /[.?!]\s+\S/.exec(content);
+    if (!m) return { heading: content, rest: null };
+    const cutAt = m.index + 1;
+    return { heading: content.slice(0, cutAt), rest: content.slice(cutAt).trimStart() };
   };
 
   // GFM pipe tables (the LLM regularly answers with "| col | col |" style
@@ -1438,6 +1510,18 @@ function renderMarkdown(text) {
   };
 
   let i = 0;
+  const pushHeading = (tag, content) => {
+    closeLists();
+    const { heading, rest } = splitHeadingContent(content);
+    out.push(`<${tag}>${heading}</${tag}>`);
+    // A blank "line" here becomes a real \n\n once out.join("\n") runs, so
+    // step 6 below treats the heading and the leftover text as separate
+    // blocks — otherwise the leftover text rides along inside the same
+    // block as the heading tag and never gets wrapped in a <p>.
+    if (rest) { out.push(""); lines[i] = rest; return; }
+    i++;
+  };
+
   while (i < lines.length) {
     const line = lines[i].trimEnd();
 
@@ -1461,9 +1545,9 @@ function renderMarkdown(text) {
       continue;
     }
 
-    if (line.startsWith("### ")) { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); i++; continue; }
-    if (line.startsWith("## "))  { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); i++; continue; }
-    if (line.startsWith("# "))   { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); i++; continue; }
+    if (line.startsWith("### ")) { pushHeading("h4", line.slice(4)); continue; }
+    if (line.startsWith("## "))  { pushHeading("h3", line.slice(3)); continue; }
+    if (line.startsWith("# "))   { pushHeading("h3", line.slice(2)); continue; }
     if (line.startsWith("&gt; ")) { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); i++; continue; }
     if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); i++; continue; }
     const task = /^[-*] \[([ xX])\] (.*)$/.exec(line);
@@ -2657,11 +2741,11 @@ function restartAnimation(el, cls) {
 // --- Escape HTML ---
 function escapeHtml(str) {
   return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 // --- Event listeners ---
