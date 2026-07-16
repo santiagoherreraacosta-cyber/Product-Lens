@@ -1389,13 +1389,20 @@ function normalizeInlineMarkdown(text) {
   let t = text;
 
   // 1. Inline horizontal rule ("texto --- más texto") → its own line.
-  t = t.replace(/([^\n])[ \t]+(-{3,})[ \t]+(?=\S)/g, "$1\n\n$2\n\n");
+  // Requires exactly one literal space on each side (not a table's "|---|"
+  // separator row, which has no whitespace at all) — a bounded, single-width
+  // requirement instead of a quantified one avoids ambiguous backtracking.
+  // Excluding "-" from the prefix keeps a run of 4+ dashes from matching
+  // itself (the first dash captured as "prose", the rest as the rule).
+  t = t.replace(/([^\n-]) (-{3,}) (?=\S)/g, "$1\n\n$2\n\n");
 
   // 2. Inline heading marker ("texto ### Encabezado") → its own line.
-  t = t.replace(/([^\n])[ \t]+(#{1,3} )/g, "$1\n\n$2");
+  // Same reasoning: excluding "#" from the prefix keeps "### " from matching
+  // itself (first "#" as "prose", remaining "## " as the marker).
+  t = t.replace(/([^\n#]) (#{1,3} )/g, "$1\n\n$2");
 
   // 3/4. Table recovery, line by line.
-  const collapseRowBoundaries = (row) => row.replace(/\|[ \t]+\|/g, "|\n|");
+  const collapseRowBoundaries = (row) => row.replaceAll("|  |", "|\n|").replaceAll("| |", "|\n|").replaceAll("||", "|\n|");
   t = t.split("\n").map((line) => {
     if (line.trimStart().startsWith("|")) {
       // Already its own row — only fix concatenated rows within it (the
@@ -1409,7 +1416,7 @@ function normalizeInlineMarkdown(text) {
     // ("cada fila? | col | col |") → break before the row starts. Anchored
     // to the end of the line ($) so it only matches when the *rest* of the
     // line is entirely pipe-delimited — never a mid-sentence "|" aside.
-    const m = /^([^|]*?[^|\s])[ \t]+(\|(?:[^|]+\|)+)$/.exec(line);
+    const m = /^([^|]*?[^|\s]) ?(\|(?:[^|]+\|)+)$/.exec(line);
     return m ? `${m[1]}\n\n${collapseRowBoundaries(m[2])}` : line;
   }).join("\n");
 
@@ -1422,24 +1429,31 @@ function renderMarkdown(text) {
   // sample that itself demonstrates markdown (a table, a heading, **bold**)
   // isn't touched by normalizeInlineMarkdown() or re-interpreted as real
   // markup by the steps below. Restored verbatim as the very last step.
+  const escapeHtmlEntities = (str) => str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
   const codeBlocks = [];
   const raw = text.replace(/```\w*\n([\s\S]*?)```/g, (_, code) => {
-    const escaped = code.trimEnd()
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    codeBlocks.push(`<pre><code>${escaped}</code></pre>`);
+    codeBlocks.push(`<pre><code>${escapeHtmlEntities(code.trimEnd())}</code></pre>`);
     return ` CODEBLOCK${codeBlocks.length - 1} `;
   });
 
-  // 2. Recover run-on markdown, then escape the rest for display.
-  let s = normalizeInlineMarkdown(raw)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  // 1b. Inline code spans come out the same way, for the same reason — a
+  // span like `foo --- bar` or `a | b` must never have its punctuation
+  // reinterpreted as an hr/heading/table cell boundary by the steps below.
+  const inlineCodes = [];
+  const rawNoInline = raw.replace(/`([^`\n]+)`/g, (_, code) => {
+    inlineCodes.push(`<code>${escapeHtmlEntities(code)}</code>`);
+    return `INLINECODE${inlineCodes.length - 1}`;
+  });
 
-  // 3. Inline code
-  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  // 2. Recover run-on markdown, then escape the rest for display.
+  let s = escapeHtmlEntities(normalizeInlineMarkdown(rawNoInline));
+
+  // 3. Restore inline code now — splitRow()'s <code>-span protection (below)
+  // and the bold/italic pass both expect real <code> tags, not placeholders.
+  s = s.replace(/INLINECODE(\d+)/g, (_, idx) => inlineCodes[Number(idx)]);
 
   // 4. Line-by-line pass for headings, lists, tables, blockquotes, HR
   const lines = s.split("\n");
@@ -1457,8 +1471,10 @@ function renderMarkdown(text) {
   // first sentence-ending punctuation so the explanation becomes its own
   // paragraph instead of being swallowed into the <h3>/<h4>.
   const splitHeadingContent = (content) => {
-    const m = /^(.*?[.?!])\s+(.+)$/.exec(content);
-    return m ? { heading: m[1], rest: m[2] } : { heading: content, rest: null };
+    const m = /[.?!]\s+\S/.exec(content);
+    if (!m) return { heading: content, rest: null };
+    const cutAt = m.index + 1;
+    return { heading: content.slice(0, cutAt), rest: content.slice(cutAt).trimStart() };
   };
 
   // GFM pipe tables (the LLM regularly answers with "| col | col |" style
@@ -2725,11 +2741,11 @@ function restartAnimation(el, cls) {
 // --- Escape HTML ---
 function escapeHtml(str) {
   return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 // --- Event listeners ---
