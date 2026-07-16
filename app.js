@@ -1402,7 +1402,7 @@ function renderMarkdown(text) {
   // GFM pipe tables (the LLM regularly answers with "| col | col |" style
   // comparisons — e.g. "Lectura | Causa | Intervención" — and without this
   // they fell through to a plain <p>, showing the raw pipes to the user).
-  const isTableRow = (line) => line.includes("|") && line.trim().replace(/\|/g, "").trim().length > 0;
+  const isTableRow = (line) => line.includes("|") && line.trim().replaceAll("|", "").trim().length > 0;
   const isSeparatorRow = (line) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(line.trim());
   const splitRow = (line) => {
     let t = line.trim();
@@ -1433,17 +1433,19 @@ function renderMarkdown(text) {
         j++;
       }
       const cellStyle = (idx) => (aligns[idx] ? ` style="text-align:${aligns[idx]}"` : "");
-      const thead = header.map((c, idx) => `<th${cellStyle(idx)}>${c}</th>`).join("");
-      const tbody = rows.map((r) => `<tr>${r.map((c, idx) => `<td${cellStyle(idx)}>${c}</td>`).join("")}</tr>`).join("");
+      const renderCell = (tag) => (c, idx) => `<${tag}${cellStyle(idx)}>${c}</${tag}>`;
+      const renderRow = (r) => `<tr>${r.map(renderCell("td")).join("")}</tr>`;
+      const thead = header.map(renderCell("th")).join("");
+      const tbody = rows.map(renderRow).join("");
       out.push(`<div class="md-table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`);
       i = j;
       continue;
     }
 
-    if (/^### /.test(line))     { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); i++; continue; }
-    if (/^## /.test(line))      { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); i++; continue; }
-    if (/^# /.test(line))       { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); i++; continue; }
-    if (/^&gt; /.test(line))    { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); i++; continue; }
+    if (line.startsWith("### ")) { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); i++; continue; }
+    if (line.startsWith("## "))  { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); i++; continue; }
+    if (line.startsWith("# "))   { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); i++; continue; }
+    if (line.startsWith("&gt; ")) { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); i++; continue; }
     if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); i++; continue; }
     const task = /^[-*] \[([ xX])\] (.*)$/.exec(line);
     if (task) {
