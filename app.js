@@ -1389,7 +1389,7 @@ function renderMarkdown(text) {
   // 3. Inline code
   s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
 
-  // 4. Line-by-line pass for headings, lists, blockquotes, HR
+  // 4. Line-by-line pass for headings, lists, tables, blockquotes, HR
   const lines = s.split("\n");
   const out = [];
   let inUl = false, inOl = false;
@@ -1399,24 +1399,71 @@ function renderMarkdown(text) {
     if (inOl) { out.push("</ol>"); inOl = false; }
   };
 
-  for (const raw of lines) {
-    const line = raw.trimEnd();
-    if (/^### /.test(line))     { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); continue; }
-    if (/^## /.test(line))      { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); continue; }
-    if (/^# /.test(line))       { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); continue; }
-    if (/^&gt; /.test(line))    { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); continue; }
-    if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); continue; }
+  // GFM pipe tables (the LLM regularly answers with "| col | col |" style
+  // comparisons — e.g. "Lectura | Causa | Intervención" — and without this
+  // they fell through to a plain <p>, showing the raw pipes to the user).
+  const isTableRow = (line) => line.includes("|") && line.trim().replace(/\|/g, "").trim().length > 0;
+  const isSeparatorRow = (line) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(line.trim());
+  const splitRow = (line) => {
+    let t = line.trim();
+    if (t.startsWith("|")) t = t.slice(1);
+    if (t.endsWith("|")) t = t.slice(0, -1);
+    return t.split("|").map((c) => c.trim());
+  };
+  const cellAlign = (sepCell) => {
+    const left = sepCell.startsWith(":"), right = sepCell.endsWith(":");
+    if (left && right) return "center";
+    if (right) return "right";
+    if (left) return "left";
+    return "";
+  };
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trimEnd();
+
+    if (isTableRow(line) && i + 1 < lines.length && isSeparatorRow(lines[i + 1])) {
+      closeLists();
+      const header = splitRow(line);
+      const aligns = splitRow(lines[i + 1]).map(cellAlign);
+      const rows = [];
+      let j = i + 2;
+      while (j < lines.length && lines[j].trim() && isTableRow(lines[j])) {
+        rows.push(splitRow(lines[j]));
+        j++;
+      }
+      const cellStyle = (idx) => (aligns[idx] ? ` style="text-align:${aligns[idx]}"` : "");
+      const thead = header.map((c, idx) => `<th${cellStyle(idx)}>${c}</th>`).join("");
+      const tbody = rows.map((r) => `<tr>${r.map((c, idx) => `<td${cellStyle(idx)}>${c}</td>`).join("")}</tr>`).join("");
+      out.push(`<div class="md-table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`);
+      i = j;
+      continue;
+    }
+
+    if (/^### /.test(line))     { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); i++; continue; }
+    if (/^## /.test(line))      { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); i++; continue; }
+    if (/^# /.test(line))       { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); i++; continue; }
+    if (/^&gt; /.test(line))    { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); i++; continue; }
+    if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); i++; continue; }
+    const task = /^[-*] \[([ xX])\] (.*)$/.exec(line);
+    if (task) {
+      if (!inUl) { if (inOl) { out.push("</ol>"); inOl = false; } out.push('<ul class="md-tasklist">'); inUl = true; }
+      const checked = task[1].toLowerCase() === "x";
+      out.push(`<li><label><input type="checkbox" disabled${checked ? " checked" : ""}> ${task[2]}</label></li>`);
+      i++; continue;
+    }
     if (/^[-*] /.test(line)) {
       if (!inUl) { if (inOl) { out.push("</ol>"); inOl = false; } out.push("<ul>"); inUl = true; }
-      out.push(`<li>${line.slice(2)}</li>`); continue;
+      out.push(`<li>${line.slice(2)}</li>`); i++; continue;
     }
     if (/^\d+\. /.test(line)) {
       if (!inOl) { if (inUl) { out.push("</ul>"); inUl = false; } out.push("<ol>"); inOl = true; }
-      out.push(`<li>${line.replace(/^\d+\. /, "")}</li>`); continue;
+      out.push(`<li>${line.replace(/^\d+\. /, "")}</li>`); i++; continue;
     }
     closeLists();
-    if (!line.trim()) { out.push(""); continue; }
+    if (!line.trim()) { out.push(""); i++; continue; }
     out.push(line);
+    i++;
   }
   closeLists();
   s = out.join("\n");
@@ -1431,7 +1478,7 @@ function renderMarkdown(text) {
   s = blocks.map((block) => {
     const t = block.trim();
     if (!t) return "";
-    if (/^<(h[2-4]|ul|ol|pre|hr|blockquote)/.test(t)) return t;
+    if (/^<(h[2-4]|ul|ol|pre|hr|blockquote|div)/.test(t)) return t;
     return `<p>${t.replace(/\n/g, "<br>")}</p>`;
   }).join("\n");
 
