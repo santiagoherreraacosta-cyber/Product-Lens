@@ -409,6 +409,22 @@ button { cursor: pointer; }
 .ai-body pre code { background: none; padding: 0; color: var(--text); font-size: 12px; }
 .ai-body blockquote { border-left: 3px solid var(--line); margin: 6px 0 10px; padding: 3px 12px; color: var(--text2); font-style: italic; }
 .ai-body hr { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
+/* Tablas GFM (comparaciones "Lectura | Causa | Intervención" que el LLM
+   devuelve seguido) — el contenedor scrollea horizontal en vez de desbordar
+   el panel de chat cuando la tabla es más ancha que el mensaje. */
+.md-table-wrap { margin: 6px 0 10px; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ai-body table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.ai-body th, .ai-body td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: normal; }
+.ai-body thead th { background: var(--code); color: var(--text2); font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+.ai-body tbody tr:last-child td { border-bottom: none; }
+.ai-body tbody tr:nth-child(even) { background: var(--hover); }
+/* GFM task lists ("- [ ] hacer X") — checkbox visual, no interactivo (el
+   estado lo fija el mensaje del LLM, no el usuario clicando en el chat).
+   Escala por <li>, no por <ul>, porque un item de tarea puede seguir a un
+   bullet normal dentro de la misma lista. */
+.ai-body li.md-task { list-style: none; margin-bottom: 4px; }
+.ai-body li.md-task label { align-items: flex-start; cursor: default; display: flex; gap: 7px; }
+.ai-body li.md-task input[type="checkbox"] { margin-top: 3px; }
 
 .primary-action, .secondary-action, .export-button, .send-button {
   border: 0;

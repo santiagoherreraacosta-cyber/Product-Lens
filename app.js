@@ -1382,14 +1382,20 @@ function renderMarkdown(text) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // 2. Fenced code blocks (must run before inline code)
-  s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
-    `<pre><code>${code.trimEnd()}</code></pre>`);
+  // 2. Fenced code blocks: pull them out behind a placeholder so a code
+  // sample that itself demonstrates markdown (a table, a heading, **bold**)
+  // isn't re-interpreted as real markup by the steps below — restored
+  // verbatim as the very last step.
+  const codeBlocks = [];
+  s = s.replace(/```\w*\n([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${code.trimEnd()}</code></pre>`);
+    return ` CODEBLOCK${codeBlocks.length - 1} `;
+  });
 
   // 3. Inline code
   s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
 
-  // 4. Line-by-line pass for headings, lists, blockquotes, HR
+  // 4. Line-by-line pass for headings, lists, tables, blockquotes, HR
   const lines = s.split("\n");
   const out = [];
   let inUl = false, inOl = false;
@@ -1399,24 +1405,89 @@ function renderMarkdown(text) {
     if (inOl) { out.push("</ol>"); inOl = false; }
   };
 
-  for (const raw of lines) {
-    const line = raw.trimEnd();
-    if (/^### /.test(line))     { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); continue; }
-    if (/^## /.test(line))      { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); continue; }
-    if (/^# /.test(line))       { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); continue; }
-    if (/^&gt; /.test(line))    { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); continue; }
-    if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); continue; }
+  // GFM pipe tables (the LLM regularly answers with "| col | col |" style
+  // comparisons — e.g. "Lectura | Causa | Intervención" — and without this
+  // they fell through to a plain <p>, showing the raw pipes to the user).
+  const isTableRow = (line) => line.includes("|") && line.trim().replaceAll("|", "").trim().length > 0;
+  const isSeparatorRow = (line) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(line.trim());
+  // A `\|` escape or a pipe inside an (already-converted) <code> span must
+  // not create a phantom extra column — e.g. "| `a | b` | ok |" or
+  // "| a \| b | ok |". Shielding both behind placeholders before a plain
+  // split("|") is simpler (and less error-prone) than scanning char-by-char.
+  const ESCAPED_PIPE = String.raw`\|`;
+  const splitRow = (line) => {
+    let t = line.trim();
+    if (t.startsWith("|")) t = t.slice(1);
+    if (t.endsWith("|") && !t.endsWith(ESCAPED_PIPE)) t = t.slice(0, -1);
+    const codeSpans = [];
+    t = t.replace(/<code>[\s\S]*?<\/code>/g, (m) => {
+      codeSpans.push(m);
+      return `@@CODE${codeSpans.length - 1}@@`;
+    });
+    t = t.replaceAll(ESCAPED_PIPE, "@@PIPE@@");
+    return t.split("|").map((c) => c.trim()
+      .replaceAll("@@PIPE@@", "|")
+      .replace(/@@CODE(\d+)@@/g, (_, idx) => codeSpans[Number(idx)]));
+  };
+  const cellAlign = (sepCell) => {
+    const left = sepCell.startsWith(":"), right = sepCell.endsWith(":");
+    if (left && right) return "center";
+    if (right) return "right";
+    if (left) return "left";
+    return "";
+  };
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trimEnd();
+
+    if (isTableRow(line) && i + 1 < lines.length && isSeparatorRow(lines[i + 1])) {
+      closeLists();
+      const header = splitRow(line);
+      const aligns = splitRow(lines[i + 1]).map(cellAlign);
+      const rows = [];
+      let j = i + 2;
+      while (j < lines.length && lines[j].trim() && isTableRow(lines[j])) {
+        rows.push(splitRow(lines[j]));
+        j++;
+      }
+      const cellStyle = (idx) => (aligns[idx] ? ` style="text-align:${aligns[idx]}"` : "");
+      const renderCell = (tag) => (c, idx) => `<${tag}${cellStyle(idx)}>${c}</${tag}>`;
+      const renderRow = (r) => `<tr>${r.map(renderCell("td")).join("")}</tr>`;
+      const thead = header.map(renderCell("th")).join("");
+      const tbody = rows.map(renderRow).join("");
+      out.push(`<div class="md-table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`);
+      i = j;
+      continue;
+    }
+
+    if (line.startsWith("### ")) { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); i++; continue; }
+    if (line.startsWith("## "))  { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); i++; continue; }
+    if (line.startsWith("# "))   { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); i++; continue; }
+    if (line.startsWith("&gt; ")) { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); i++; continue; }
+    if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); i++; continue; }
+    const task = /^[-*] \[([ xX])\] (.*)$/.exec(line);
+    if (task) {
+      // Styling lives on the <li> (md-task), not the <ul> — a task item can
+      // follow a plain bullet within the same list, and the parent <ul> is
+      // only opened once (by whichever item — plain or task — comes first).
+      if (!inUl) { if (inOl) { out.push("</ol>"); inOl = false; } out.push("<ul>"); inUl = true; }
+      const checked = task[1].toLowerCase() === "x";
+      out.push(`<li class="md-task"><label><input type="checkbox" disabled${checked ? " checked" : ""}> ${task[2]}</label></li>`);
+      i++; continue;
+    }
     if (/^[-*] /.test(line)) {
       if (!inUl) { if (inOl) { out.push("</ol>"); inOl = false; } out.push("<ul>"); inUl = true; }
-      out.push(`<li>${line.slice(2)}</li>`); continue;
+      out.push(`<li>${line.slice(2)}</li>`); i++; continue;
     }
     if (/^\d+\. /.test(line)) {
       if (!inOl) { if (inUl) { out.push("</ul>"); inUl = false; } out.push("<ol>"); inOl = true; }
-      out.push(`<li>${line.replace(/^\d+\. /, "")}</li>`); continue;
+      out.push(`<li>${line.replace(/^\d+\. /, "")}</li>`); i++; continue;
     }
     closeLists();
-    if (!line.trim()) { out.push(""); continue; }
+    if (!line.trim()) { out.push(""); i++; continue; }
     out.push(line);
+    i++;
   }
   closeLists();
   s = out.join("\n");
@@ -1426,14 +1497,20 @@ function renderMarkdown(text) {
   s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
   s = s.replace(/_([^_\n]+)_/g, "<em>$1</em>");
 
-  // 6. Wrap plain-text runs in <p>, convert single \n to <br> within paragraphs
+  // 6. Wrap plain-text runs in <p>, convert single \n to <br> within paragraphs.
+  // A lone code-block placeholder is left unwrapped too (restored to <pre> next).
+  const isCodeBlockPlaceholder = (t) => /^CODEBLOCK\d+$/.test(t);
   const blocks = s.split(/\n{2,}/);
   s = blocks.map((block) => {
     const t = block.trim();
     if (!t) return "";
-    if (/^<(h[2-4]|ul|ol|pre|hr|blockquote)/.test(t)) return t;
+    if (/^<(h[2-4]|ul|ol|pre|hr|blockquote|div)/.test(t) || isCodeBlockPlaceholder(t)) return t;
     return `<p>${t.replace(/\n/g, "<br>")}</p>`;
   }).join("\n");
+
+  // 7. Restore fenced code blocks verbatim — nothing above (tables, headings,
+  // bold/italic, inline code) ever saw their real content.
+  s = s.replace(/CODEBLOCK(\d+)/g, (_, idx) => codeBlocks[Number(idx)]);
 
   return s;
 }
