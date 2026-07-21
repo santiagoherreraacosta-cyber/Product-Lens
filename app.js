@@ -1,6 +1,6 @@
 import { getGateRequirements } from "./src/phaseEngine.js";
 import { markdownToPdfHtml } from "./src/exportService.js";
-import { PHASES, FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL, SESGOS, SESGO_LABEL, TIPOS_SUPUESTO, TEST_ESCALERA, TEST_ELEGIDO_LABEL, DECISIONS_F3 } from "./src/doctrina.js";
+import { PHASES, FASE_LABEL, COGNITIVE_LABEL, COGNITIVE_LEVELS, SUB_PERFILES, SUB_PERFIL_LABEL, TRANSITIONS, transitionLabel, subPerfilLabel, SUB_CAUSA, SUB_CAUSA_LABEL, SESGOS, SESGO_LABEL, TIPOS_SUPUESTO, TIPO_SUPUESTO_LABEL, TEST_ESCALERA, TEST_ELEGIDO_LABEL, TEST_ELEGIDO_GLOSA, DECISIONS_F3 } from "./src/doctrina.js";
 
 // <option> lists derived from the doctrine enums (2B).
 const subPerfilOptions = (cur = "") =>
@@ -17,11 +17,14 @@ const sesgoOptions = (cur = "") =>
     .join("");
 const tipoSupuestoOptions = (cur = "") =>
   ['<option value="">Tipo de supuesto…</option>']
-    .concat(TIPOS_SUPUESTO.map((t) => `<option value="${t}"${t === cur ? " selected" : ""}>${t[0].toUpperCase()}${t.slice(1)}</option>`))
+    .concat(TIPOS_SUPUESTO.map((t) => `<option value="${t}"${t === cur ? " selected" : ""}>${TIPO_SUPUESTO_LABEL[t] ?? t}</option>`))
     .join("");
 const testElegidoOptions = (cur = "") =>
-  ['<option value="">Test (escalera §8)…</option>']
-    .concat(TEST_ESCALERA.map((t) => `<option value="${t}"${t === cur ? " selected" : ""}>${TEST_ELEGIDO_LABEL[t]}</option>`))
+  ['<option value="">Elige un test (del más barato al más caro)…</option>']
+    .concat(TEST_ESCALERA.map((t) => {
+      const glosa = TEST_ELEGIDO_GLOSA[t] ? ` — ${TEST_ELEGIDO_GLOSA[t]}` : "";
+      return `<option value="${t}"${t === cur ? " selected" : ""}>${TEST_ELEGIDO_LABEL[t]}${glosa}</option>`;
+    }))
     .join("");
 const decisionF3Labels = { avanzar_f4: "Avanzar a F4", re_diagnosticar: "Re-diagnosticar", matar: "Matar" };
 const decisionF3Options = (cur = "") =>
@@ -528,10 +531,10 @@ function renderCyclesList() {
 // objective and a live checklist of its gate requirements.
 const PHASE_META = {
   F0: { label: FASE_LABEL.F0, goal: "Detecta un comportamiento anómalo: ¿qué seller, haciendo qué, no está haciendo qué? Añade una señal cuantitativa y el segmento." },
-  F1: { label: FASE_LABEL.F1, goal: "Encuentra la causa raíz con B=MAP. Necesitas ≥2 fuentes confirmadas y la causa (Motivación / Ability / Prompt) confirmada por ti." },
-  F2: { label: FASE_LABEL.F2, goal: "Diseña la intervención sobre la causa detectada y formula una hipótesis falsable." },
-  F3: { label: FASE_LABEL.F3, goal: "Dimensiona el experimento: métrica de éxito (outcome), tamaño/duración y criterio de stop." },
-  F4: { label: FASE_LABEL.F4, goal: "Despliega y observa: experimento corriendo y tracking confirmado. No leas resultados antes del criterio de stop." },
+  F1: { label: FASE_LABEL.F1, goal: "Encuentra por qué no pasa el comportamiento: la causa raíz (Motivación / Ability / Prompt), respaldada por ≥2 fuentes que apunten a lo mismo, y el sesgo específico que la explica." },
+  F2: { label: FASE_LABEL.F2, goal: "Diseña el cambio mínimo sobre esa causa, con una hipótesis falsable, y pásalo por los 3 filtros de SDT (autonomía / mastery / relatedness)." },
+  F3: { label: FASE_LABEL.F3, goal: "Valida barato: elige el test más económico que pueda tumbar tu supuesto más riesgoso antes de construir. El A/B es solo un escalón más de la escalera, no el punto de partida." },
+  F4: { label: FASE_LABEL.F4, goal: "Traduce la intervención ya validada en un spec conductual que el equipo técnico pueda construir sin adivinar la intención. Confirma también el tracking." },
   F5: { label: FASE_LABEL.F5, goal: "Mide, decide (escalar/matar/iterar) y destila el patrón nombrado." },
 };
 
@@ -545,20 +548,74 @@ function renderPhaseGuide(cycle) {
   let reqs = [];
   try { reqs = getGateRequirements(cycle, phase); } catch { reqs = []; }
   const done = reqs.filter((r) => r.met).length;
+  const remaining = reqs.length - done;
+  // Cada pendiente es clicable y salta a su campo (data-gatekey → focusGateField).
   const items = reqs.map((r) =>
-    `<li class="${r.met ? "is-met" : ""}"><span class="pg-check">${r.met ? "✓" : "○"}</span>${escapeHtml(r.message.replace(/^Falta (la |el |confirmar el )?/i, ""))}</li>`
+    `<li class="${r.met ? "is-met" : "is-pending"}" data-gatekey="${escapeHtml(r.key)}" role="button" tabindex="0"><span class="pg-check">${r.met ? "✓" : "○"}</span>${escapeHtml(r.message.replace(/^(Falta|Marca) (la |el |confirmar el |al menos )?/i, ""))}</li>`
   ).join("");
-  // F1 needs ≥2 convergent evidence sources; offer a shortcut into the fields.
-  const evidenceAction = phase === "F1"
-    ? `<button type="button" class="pg-action" id="pgAddEvidence">+ Adjuntar evidencia</button>`
-    : "";
+  // Contador en lenguaje llano: qué falta para el siguiente paso, no "cerrar el gate".
+  const order = ["F0", "F1", "F2", "F3", "F4", "F5"];
+  const action = phase === "F5" ? "cerrar el ciclo" : `avanzar a ${order[order.indexOf(phase) + 1]}`;
+  const countText = reqs.length === 0 ? ""
+    : remaining === 0 ? `✓ Listo para ${action}`
+    : `Te falta${remaining === 1 ? "" : "n"} ${remaining} para ${action}`;
+  const hint = remaining > 0 ? `<p class="pg-hint">Haz clic en un pendiente para ir al campo.</p>` : "";
   el.hidden = false;
   el.innerHTML = `
-    <div class="pg-head"><strong>${escapeHtml(phase)} · ${escapeHtml(meta.label)}</strong><span class="pg-count">${done}/${reqs.length} para cerrar el gate</span></div>
+    <div class="pg-head"><strong>${escapeHtml(phase)} · ${escapeHtml(meta.label)}</strong><span class="pg-count ${remaining === 0 ? "is-ready" : ""}">${escapeHtml(countText)}</span></div>
     <p class="pg-goal">${escapeHtml(meta.goal)}</p>
     ${reqs.length ? `<ul class="pg-checklist">${items}</ul>` : ""}
-    ${evidenceAction}`;
-  document.getElementById("pgAddEvidence")?.addEventListener("click", focusEvidenceField);
+    ${hint}`;
+  el.querySelectorAll(".pg-checklist li[data-gatekey]").forEach((li) => {
+    const go = () => focusGateField(li.dataset.gatekey);
+    li.addEventListener("click", go);
+    li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+}
+
+// Cada requisito del gate → el campo que lo satisface (panel + id del elemento).
+// null en deliverable = vive en el panel de cierre F5 (siempre visible en F5).
+const GATE_FIELD_MAP = {
+  behaviorStatement: { deliverable: "brief", elId: "briefBehavior" },
+  quantitativeSignal: { deliverable: "brief", elId: "metricField" },
+  segment: { deliverable: "brief", elId: "briefSegment" },
+  sources: { deliverable: "brief", elId: "briefEvidence" },
+  bmapCause: { deliverable: "brief", elId: "briefCauseSelector" },
+  sesgo: { deliverable: "brief", elId: "briefSesgo" },
+  intervention: { deliverable: "brief", elId: "briefIntervention" },
+  falsifiableHypothesis: { deliverable: "brief", elId: "hypothesisField" },
+  sdtAutonomia: { deliverable: "brief", elId: "sdtAutonomiaCheck" },
+  sdtMastery: { deliverable: "brief", elId: "sdtMasteryCheck" },
+  sdtRelatedness: { deliverable: "brief", elId: "sdtRelatednessCheck" },
+  supuestoMasRiesgoso: { deliverable: "experiment", elId: "experimentSupuesto" },
+  testElegido: { deliverable: "experiment", elId: "experimentTestElegido" },
+  causalidadValidada: { deliverable: "experiment", elId: "experimentTestElegido" },
+  metric: { deliverable: "experiment", elId: "experimentMetric" },
+  outcomeMetric: { deliverable: "experiment", elId: "metricTypeToggle" },
+  sizeAndDuration: { deliverable: "experiment", elId: "experimentSample" },
+  stopCriteria: { deliverable: "experiment", elId: "experimentStop" },
+  specConductual: { deliverable: "spec", elId: "specComportamiento" },
+  trackingConfirmed: { deliverable: "experiment", elId: "experimentTracking" },
+  decision: { deliverable: null, elId: "decisionPicker" },
+  namedPattern: { deliverable: null, elId: "patternName" },
+};
+
+// Click en un pendiente del checklist → abre el panel correcto, despliega el
+// bloque si está colapsado en "Profundizar", hace scroll y enfoca el campo.
+// "sources" conserva la lógica fina (evidencia 1ª vs 2ª que aún falta).
+function focusGateField(key) {
+  if (key === "sources") return focusEvidenceField();
+  const map = GATE_FIELD_MAP[key];
+  if (!map) return;
+  if (map.deliverable) setDeliverable(map.deliverable);
+  const target = document.getElementById(map.elId);
+  if (!target) return;
+  const advanced = target.closest("details.brief-advanced");
+  if (advanced) advanced.open = true;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  restartAnimation(target, "fillpop");
+  const focusable = target.matches("input,select,textarea,button") ? target : target.querySelector("input,select,textarea,button");
+  (focusable ?? target).focus?.();
 }
 
 // F1 evidence shortcut: switch to the Brief, then scroll + focus + highlight the
@@ -571,6 +628,8 @@ function focusEvidenceField() {
   const needsAction = (el) => !el || !(el.dataset.value || "").trim() || el.classList.contains("is-pending-confirm");
   const target = needsAction(primary) ? primary : (needsAction(second) ? second : primary);
   if (!target) return;
+  const advanced = target.closest("details.brief-advanced");
+  if (advanced) advanced.open = true;
   target.scrollIntoView({ behavior: "smooth", block: "center" });
   restartAnimation(target, "fillpop");
   target.focus?.();

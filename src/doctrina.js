@@ -161,6 +161,12 @@ export function normalizeSesgo(v) {
 
 // --- F3: tipo de supuesto + escalera de validación (§8, más barato primero) ---
 export const TIPOS_SUPUESTO = ["deseabilidad", "factibilidad", "viabilidad"];
+// Glosa de una línea para audiencia PM (el select la muestra al lado del nombre).
+export const TIPO_SUPUESTO_LABEL = {
+  deseabilidad: "Deseabilidad (¿lo quieren?)",
+  factibilidad: "Factibilidad (¿se puede construir?)",
+  viabilidad: "Viabilidad (¿le conviene al negocio?)",
+};
 export function normalizeTipoSupuesto(v) {
   const s = String(v ?? "").trim().toLowerCase();
   return TIPOS_SUPUESTO.includes(s) ? s : null;
@@ -179,6 +185,18 @@ export const TEST_ELEGIDO_LABEL = {
   n1_sced: "N=1 SCED",
   fake_door: "Fake Door",
   ab: "A/B",
+};
+// Glosa de una línea para audiencia PM. El select de F3 muestra "Nombre — glosa";
+// el filtro de la biblioteca sigue usando solo TEST_ELEGIDO_LABEL (chip corto).
+export const TEST_ELEGIDO_GLOSA = {
+  pre_mortem: "imaginas que ya falló y listas por qué",
+  expert_review: "un experto revisa antes de gastar en usuarios",
+  guerrilla_5u: "5 usuarios reales, rápido y sucio",
+  wizard_of_oz: "simulas el mecanismo a mano, el usuario no lo nota",
+  concierge: "entregas el valor manualmente, sin construir",
+  n1_sced: "un solo usuario, medido antes/después",
+  fake_door: "mides demanda con un botón que aún no existe",
+  ab: "comparas dos versiones en vivo (solo con la causa ya validada)",
 };
 export function normalizeTestElegido(v) {
   const s = String(v ?? "").trim().toLowerCase();
