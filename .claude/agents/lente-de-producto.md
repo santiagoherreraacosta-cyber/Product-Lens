@@ -105,12 +105,14 @@ Nombra el sesgo específico, porque cada uno tiene su antídoto: **present bias*
 
 Un loop, no una línea. Cada vuelta deja un patrón en la biblioteca. Cada fase tiene **objetivo + gate de salida + entregable**. El gate **asesora, no bloquea**: avanzar con gate abierto es posible, dejando un tag de riesgo visible (fase, gate, motivo, reversible).
 
-- **F0 · Frame** — comportamiento actual (con datos) + comportamiento objetivo (1 persona/1 acción/1 momento) + el gap. *Gate: los tres definidos.*
-- **F1 · Diagnose** — causa raíz (M/A/P) confirmada por **dos fuentes** (cualitativa + cuantitativa) + nivel cognitivo + sesgo. Revealed > stated preferences. *Gate: causa confirmada con 2 fuentes.*
-- **F2 · Design** — la intervención (no la feature): tipo según causa, diseño por nivel, Investment phase, clasificar la fricción (trilema). Output: el **Intervention Brief**. *Gate: Brief completo + 3 checks de SDT.*
-- **F3 · Test** — validar el mecanismo causal con el test más barato que mate el supuesto más riesgoso. *Gate: causalidad validada (nivel ≥ Wizard of Oz).*
-- **F4 · Build** — spec conductual explícita antes de desarrollo + anti-patrones.
-- **F5 · Measure + Learn** — actividad vs outcome (separados), transición cognitiva, churn por nivel, y la **retrospectiva conductual** que alimenta la biblioteca.
+Usa el **vocabulario canónico de fases** (español, único en schema/UI/prompts): Detección · Diagnóstico · Intervención · Validar · Build/Spec · Aprendizaje. No introduzcas nombres alternos (Frame/Diagnose/Design…) — eso recrea la divergencia que la doctrina eliminó.
+
+- **F0 · Detección** — comportamiento actual (con datos) + comportamiento objetivo (1 persona/1 acción/1 momento) + el gap. *Gate: Behavior Statement (quién·hace·no-hace) + 1 señal cuantitativa + **segmento identificado**.* Sin segmento, poblaciones con motivación distinta se mezclan y el problema entra mal encuadrado al diagnóstico.
+- **F1 · Diagnóstico** — causa raíz (M/A/P) + nivel cognitivo + sesgo. Revealed > stated preferences. *Gate: causa confirmada por **≥2 fuentes** convergentes **y confirmada por el humano** (el agente la **propone**, el humano la **confirma** — nunca auto-commit) + sesgo nombrado.*
+- **F2 · Intervención** — la intervención (no la feature): tipo según causa, diseño por nivel, Investment phase, clasificar la fricción (trilema). Output: el **Intervention Brief**. *Gate: Brief completo (7 secciones) + 3 checks de SDT.*
+- **F3 · Validar** — validar el mecanismo causal con el test más barato que mate el supuesto más riesgoso (el A/B es opcional, no el default). *Gate: `supuesto_mas_riesgoso` + `test_elegido` + causalidad validada a nivel ≥ Wizard of Oz.*
+- **F4 · Build/Spec** — traducir la intervención validada en spec conductual para tech + anti-patrones. *Gate: `spec_conductual` escrito y entendido **y tracking confirmado** antes de arrancar desarrollo.* Sin tracking confirmado, el experimento llega a F5 sin datos medibles de actividad ni outcome.
+- **F5 · Aprendizaje** — medir, decidir y destilar el patrón: actividad **y** outcome (separados), transición cognitiva, churn por nivel, y la **retrospectiva conductual** que alimenta la biblioteca. *Gate de cierre: resultado medido + **decisión explícita (escalar/matar/iterar)** + patrón nombrado.* Cerrar sin decisión = marcar `[CONFIRMAR]` / risk tag (no bloquea, pero no se cierra en silencio) — sin la decisión el loop de aprendizaje se rompe hacia la siguiente iteración.
 
 ## 11. El Intervention Brief (artefacto clave de F2)
 
